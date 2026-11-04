@@ -953,10 +953,14 @@
       let stick = {
         x: 270,
         y: 365,
+        angle: 0,
       };
       let pointer = {
         x: 270,
         y: 365,
+        angle: 0,
+        directionSampleX: 270,
+        directionSampleY: 365,
         isActive: false,
         isPressed: false,
       };
@@ -1400,6 +1404,18 @@
         if (!pointer.isActive) {
           stick.x = pointer.x;
           stick.y = pointer.y;
+          stick.angle = pointer.angle;
+          pointer.directionSampleX = pointer.x;
+          pointer.directionSampleY = pointer.y;
+        } else {
+          const movementX = pointer.x - pointer.directionSampleX;
+          const movementY = pointer.y - pointer.directionSampleY;
+          const minimumMovement = (3 * RINK_WIDTH) / boundsRect.width;
+          if (Math.hypot(movementX, movementY) >= minimumMovement) {
+            pointer.angle = Math.atan2(movementY, movementX);
+            pointer.directionSampleX = pointer.x;
+            pointer.directionSampleY = pointer.y;
+          }
         }
         pointer.isActive = true;
       }
@@ -1441,24 +1457,32 @@
         const previousStickPosition = {
           x: stick.x,
           y: stick.y,
+          angle: stick.angle ?? 0,
         };
         moveStick();
-        const targetStickPosition = { x: stick.x, y: stick.y };
+        const targetStickPosition = { x: stick.x, y: stick.y, angle: stick.angle };
+        const rotationChange = getShortestAngle(
+          targetStickPosition.angle - previousStickPosition.angle,
+        );
         const movementDistance = Math.hypot(
           targetStickPosition.x - previousStickPosition.x,
           targetStickPosition.y - previousStickPosition.y,
         );
-        const movementSteps = Math.max(1, Math.ceil(movementDistance / (PUCK_RADIUS / 2)));
+        const bladeTravelDistance =
+          movementDistance + Math.abs(rotationChange) * getBladeHalfLength();
+        const movementSteps = Math.max(1, Math.ceil(bladeTravelDistance / (PUCK_RADIUS / 2)));
         const movementDeltaTime = deltaTime / movementSteps;
 
         for (let index = 1; index <= movementSteps; index++) {
-          const previousPosition = index === 1 ? previousStickPosition : { x: stick.x, y: stick.y };
+          const previousPosition =
+            index === 1 ? previousStickPosition : { x: stick.x, y: stick.y, angle: stick.angle };
           stick.x =
             previousStickPosition.x +
             ((targetStickPosition.x - previousStickPosition.x) * index) / movementSteps;
           stick.y =
             previousStickPosition.y +
             ((targetStickPosition.y - previousStickPosition.y) * index) / movementSteps;
+          stick.angle = previousStickPosition.angle + (rotationChange * index) / movementSteps;
           updatePucks(movementDeltaTime, previousPosition);
           resolvePuckCollisions();
         }
@@ -1494,11 +1518,17 @@
         }
       }
 
+      function getShortestAngle(angle) {
+        return Math.atan2(Math.sin(angle), Math.cos(angle));
+      }
+
       function moveStick() {
         if (!pointer.isActive) return;
+        stick.angle ??= 0;
         const stepsLeft = Math.max(1, remainingStickSteps);
         stick.x += (pointer.x - stick.x) / stepsLeft;
         stick.y += (pointer.y - stick.y) / stepsLeft;
+        stick.angle += getShortestAngle(pointer.angle - stick.angle) / stepsLeft;
         remainingStickSteps = Math.max(1, remainingStickSteps - 1);
       }
 
@@ -1512,7 +1542,7 @@
             }
             continue;
           }
-          hitPuckWithStick(puck, deltaTime, previousStickPosition.x, previousStickPosition.y);
+          hitPuckWithStick(puck, deltaTime, previousStickPosition);
           if (movePuck(puck, deltaTime)) {
             continue;
           }
@@ -1520,34 +1550,46 @@
         }
       }
 
-      function hitPuckWithStick(puck, deltaTime, previousStickX, previousStickY) {
-        if (pointer.isActive) {
-          const closestBladeX = stick.x;
-          const closestBladeY = Math.max(
-            stick.y - getBladeHalfLength(),
-            Math.min(stick.y + getBladeHalfLength(), puck.y),
-          );
-          const distanceX = puck.x - closestBladeX;
-          const distanceY = puck.y - closestBladeY;
-          const distance = Math.hypot(distanceX, distanceY);
-          const minimumDistance = PUCK_RADIUS + 7;
-          if (distance < minimumDistance) {
-            const normalX = distance > 0.01 ? distanceX / distance : 1;
-            const normalY = distance > 0.01 ? distanceY / distance : 0;
-            const stickVelocityX = (stick.x - previousStickX) / deltaTime;
-            const stickVelocityY = (stick.y - previousStickY) / deltaTime;
-            const relativeSpeed =
-              (puck.velocityX - stickVelocityX) * normalX +
-              (puck.velocityY - stickVelocityY) * normalY;
-            puck.x += normalX * (minimumDistance - distance + 0.1);
-            puck.y += normalY * (minimumDistance - distance + 0.1);
-            if (relativeSpeed < 0) {
-              puck.hasBanked = false;
-              const impulse = -relativeSpeed * 1.65 * (1 + 0.15 * state.power);
-              puck.velocityX += normalX * impulse;
-              puck.velocityY += normalY * impulse;
-            }
-          }
+      function hitPuckWithStick(puck, deltaTime, previousStickPosition) {
+        if (!pointer.isActive) return;
+        const stickAngle = stick.angle ?? 0;
+        const bladeDirectionX = -Math.sin(stickAngle);
+        const bladeDirectionY = Math.cos(stickAngle);
+        const distanceFromCenterX = puck.x - stick.x;
+        const distanceFromCenterY = puck.y - stick.y;
+        const projection =
+          distanceFromCenterX * bladeDirectionX + distanceFromCenterY * bladeDirectionY;
+        const bladeOffset = Math.max(
+          -getBladeHalfLength(),
+          Math.min(getBladeHalfLength(), projection),
+        );
+        const contactOffsetX = bladeDirectionX * bladeOffset;
+        const contactOffsetY = bladeDirectionY * bladeOffset;
+        const closestBladeX = stick.x + contactOffsetX;
+        const closestBladeY = stick.y + contactOffsetY;
+        const distanceX = puck.x - closestBladeX;
+        const distanceY = puck.y - closestBladeY;
+        const distance = Math.hypot(distanceX, distanceY);
+        const minimumDistance = PUCK_RADIUS + 7;
+        if (distance >= minimumDistance) return;
+
+        const normalX = distance > 0.01 ? distanceX / distance : Math.cos(stickAngle);
+        const normalY = distance > 0.01 ? distanceY / distance : Math.sin(stickAngle);
+        const angularVelocity =
+          getShortestAngle(stickAngle - (previousStickPosition.angle ?? stickAngle)) / deltaTime;
+        const stickVelocityX =
+          (stick.x - previousStickPosition.x) / deltaTime - angularVelocity * contactOffsetY;
+        const stickVelocityY =
+          (stick.y - previousStickPosition.y) / deltaTime + angularVelocity * contactOffsetX;
+        const relativeSpeed =
+          (puck.velocityX - stickVelocityX) * normalX + (puck.velocityY - stickVelocityY) * normalY;
+        puck.x += normalX * (minimumDistance - distance + 0.1);
+        puck.y += normalY * (minimumDistance - distance + 0.1);
+        if (relativeSpeed < 0) {
+          puck.hasBanked = false;
+          const impulse = -relativeSpeed * 1.65 * (1 + 0.15 * state.power);
+          puck.velocityX += normalX * impulse;
+          puck.velocityY += normalY * impulse;
         }
       }
 
@@ -1803,6 +1845,7 @@
         if (!pointer.isActive) return;
         drawingContext.save();
         drawingContext.translate(pointer.x, pointer.y);
+        drawingContext.rotate(pointer.angle);
         drawingContext.lineCap = "round";
         const bladeHalfLength = getBladeHalfLength();
         drawLine(-62, -bladeHalfLength - 121, -24, -bladeHalfLength - 29, "#23394c25", 12);
