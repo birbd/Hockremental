@@ -181,15 +181,34 @@
         border-bottom: 1px solid var(--navy);
         margin: 0 0 16px;
       }
+      .layer-tab-list {
+        display: flex;
+        gap: 0;
+      }
       .layer-tab {
         display: block;
-        background: var(--navy);
-        color: white;
-        border-bottom: 3px solid var(--red);
+        background: transparent;
+        color: var(--navy);
+        border: 0;
+        border-bottom: 3px solid transparent;
         font:
           bold 13px Arial,
           sans-serif;
         padding: 12px 20px;
+      }
+      .layer-tab[aria-selected="true"] {
+        background: var(--navy);
+        color: white;
+        border-bottom-color: var(--red);
+      }
+      .layer-tab:hover:not(:disabled) {
+        background: #dce1e2;
+        color: var(--navy);
+      }
+      @media (max-width: 540px) {
+        .layer-tab {
+          padding: 12px 10px;
+        }
       }
       .points-counter {
         display: flex;
@@ -268,10 +287,33 @@
   <body>
     <main>
       <nav class="layer-tabs" aria-label="Prestige layers">
-        <span class="layer-tab" aria-current="page">Rink</span>
+        <div class="layer-tab-list" role="tablist" aria-label="Game layers">
+          <button
+            class="layer-tab"
+            id="layer-rink"
+            role="tab"
+            aria-controls="rink-page"
+            aria-selected="true"
+            tabindex="0"
+            data-layer="rink"
+          >
+            Rink
+          </button>
+          <button
+            class="layer-tab"
+            id="layer-franchise"
+            role="tab"
+            aria-controls="franchise-page"
+            aria-selected="false"
+            tabindex="-1"
+            data-layer="franchise"
+          >
+            Franchise
+          </button>
+        </div>
         <div class="points-counter"><span>Points</span><strong id="points">0</strong></div>
       </nav>
-      <div class="layout">
+      <div class="layout" id="rink-page" role="tabpanel" aria-labelledby="layer-rink">
         <section>
           <div class="rink-container">
             <canvas
@@ -463,6 +505,12 @@
           </div>
         </aside>
       </div>
+      <section
+        id="franchise-page"
+        role="tabpanel"
+        aria-labelledby="layer-franchise"
+        hidden
+      ></section>
     </main>
     <script>
       "use strict";
@@ -584,6 +632,8 @@
       let elapsedGameTime = 0;
       let lastGoalTime = -Infinity;
       let scoringStreak = 0;
+      let activeLayer = "rink";
+      let remainingStickSteps = 1;
       const formatNumber = (number) => Math.floor(number).toLocaleString();
       const getGoalValue = (level = state.bonus) => Math.round(10 * Math.pow(1.5, level));
       const getShooterInterval = () => 8;
@@ -803,16 +853,54 @@
         save();
       }
 
+      function selectLayer(layer) {
+        activeLayer = layer;
+        pointer.isActive = false;
+        document.querySelectorAll("[data-layer]").forEach((button) => {
+          const isSelected = button.dataset.layer === layer;
+          button.setAttribute("aria-selected", String(isSelected));
+          button.tabIndex = isSelected ? 0 : -1;
+          getElement(button.dataset.layer + "-page").hidden = !isSelected;
+        });
+      }
+
+      function bindLayerTabs() {
+        const tabs = [...document.querySelectorAll("[data-layer]")];
+        tabs.forEach((button, index) => {
+          button.onclick = () => selectLayer(button.dataset.layer);
+          button.onkeydown = (event) => {
+            let nextIndex;
+            if (event.key === "ArrowRight") nextIndex = (index + 1) % tabs.length;
+            else if (event.key === "ArrowLeft") nextIndex = (index + tabs.length - 1) % tabs.length;
+            else if (event.key === "Home") nextIndex = 0;
+            else if (event.key === "End") nextIndex = tabs.length - 1;
+            else return;
+            event.preventDefault();
+            selectLayer(tabs[nextIndex].dataset.layer);
+            tabs[nextIndex].focus();
+          };
+        });
+      }
+
       function updatePointerPosition(event) {
         const boundsRect = canvas.getBoundingClientRect();
-        pointer.x = Math.max(
-          42,
-          Math.min(958, ((event.clientX - boundsRect.left) * RINK_WIDTH) / boundsRect.width),
-        );
-        pointer.y = Math.max(
-          42,
-          Math.min(608, ((event.clientY - boundsRect.top) * RINK_HEIGHT) / boundsRect.height),
-        );
+        const isInsideRink =
+          activeLayer === "rink" &&
+          boundsRect.width > 0 &&
+          boundsRect.height > 0 &&
+          event.clientX >= boundsRect.left &&
+          event.clientX < boundsRect.right &&
+          event.clientY >= boundsRect.top &&
+          event.clientY < boundsRect.bottom;
+
+        if (!isInsideRink) {
+          pointer.isActive = false;
+          return;
+        }
+
+        pointer.x = ((event.clientX - boundsRect.left) * RINK_WIDTH) / boundsRect.width;
+        pointer.y = ((event.clientY - boundsRect.top) * RINK_HEIGHT) / boundsRect.height;
+
         if (!pointer.isActive) {
           stick.x = pointer.x;
           stick.y = pointer.y;
@@ -821,21 +909,16 @@
       }
 
       function bindGameControls() {
-        canvas.addEventListener("pointermove", updatePointerPosition);
-        canvas.addEventListener("pointerdown", (event) => {
-          updatePointerPosition(event);
-          pointer.isPressed = true;
-          canvas.setPointerCapture(event.pointerId);
-        });
-        canvas.addEventListener("pointerup", () => (pointer.isPressed = false));
-        canvas.addEventListener("pointercancel", () => {
-          pointer.isPressed = false;
+        document.addEventListener("pointermove", updatePointerPosition);
+        canvas.addEventListener("pointerdown", updatePointerPosition);
+        document.addEventListener("pointercancel", () => {
           pointer.isActive = false;
         });
-        canvas.addEventListener("pointerleave", () => {
-          if (!pointer.isPressed) {
-            pointer.isActive = false;
-          }
+        document.addEventListener("pointerout", (event) => {
+          if (!event.relatedTarget) pointer.isActive = false;
+        });
+        addEventListener("blur", () => {
+          pointer.isActive = false;
         });
         getElement("reset").onclick = resetPucks;
         addEventListener("keydown", (event) => {
@@ -862,9 +945,26 @@
           x: stick.x,
           y: stick.y,
         };
-        moveStick(deltaTime);
-        updatePucks(deltaTime, previousStickPosition);
-        resolvePuckCollisions();
+        moveStick();
+        const targetStickPosition = { x: stick.x, y: stick.y };
+        const movementDistance = Math.hypot(
+          targetStickPosition.x - previousStickPosition.x,
+          targetStickPosition.y - previousStickPosition.y,
+        );
+        const movementSteps = Math.max(1, Math.ceil(movementDistance / (PUCK_RADIUS / 2)));
+        const movementDeltaTime = deltaTime / movementSteps;
+
+        for (let index = 1; index <= movementSteps; index++) {
+          const previousPosition = index === 1 ? previousStickPosition : { x: stick.x, y: stick.y };
+          stick.x =
+            previousStickPosition.x +
+            ((targetStickPosition.x - previousStickPosition.x) * index) / movementSteps;
+          stick.y =
+            previousStickPosition.y +
+            ((targetStickPosition.y - previousStickPosition.y) * index) / movementSteps;
+          updatePucks(movementDeltaTime, previousPosition);
+          resolvePuckCollisions();
+        }
       }
 
       function updateGoalEffects(deltaTime) {
@@ -891,17 +991,12 @@
         }
       }
 
-      function moveStick(deltaTime) {
-        if (pointer.isActive) {
-          const distanceX = pointer.x - stick.x;
-          const distanceY = pointer.y - stick.y;
-          const distance = Math.hypot(distanceX, distanceY);
-          const maximumMovement = 2400 * deltaTime;
-          if (distance) {
-            stick.x += distanceX * Math.min(1, maximumMovement / distance);
-            stick.y += distanceY * Math.min(1, maximumMovement / distance);
-          }
-        }
+      function moveStick() {
+        if (!pointer.isActive) return;
+        const stepsLeft = Math.max(1, remainingStickSteps);
+        stick.x += (pointer.x - stick.x) / stepsLeft;
+        stick.y += (pointer.y - stick.y) / stepsLeft;
+        remainingStickSteps = Math.max(1, remainingStickSteps - 1);
       }
 
       function updatePucks(deltaTime, previousStickPosition) {
@@ -1065,6 +1160,7 @@
       }
 
       function renderGame() {
+        if (activeLayer !== "rink") return;
         drawRink();
         drawGoal();
         drawPucks();
@@ -1176,8 +1272,9 @@
       }
 
       function drawStick() {
+        if (!pointer.isActive || activeLayer !== "rink") return;
         drawingContext.save();
-        drawingContext.translate(stick.x, stick.y);
+        drawingContext.translate(pointer.x, pointer.y);
         drawingContext.lineCap = "round";
         const bladeHalfLength = getBladeHalfLength();
         drawLine(-62, -bladeHalfLength - 121, -24, -bladeHalfLength - 29, "#23394c25", 12);
@@ -1246,6 +1343,7 @@
           : 0;
         previousFrameTime = timestamp;
         physicsAccumulator += frameDeltaTime;
+        remainingStickSteps = Math.max(1, Math.floor(physicsAccumulator / (1 / 240)));
         while (physicsAccumulator >= 1 / 240) {
           updateGamePhysics(1 / 240);
           physicsAccumulator -= 1 / 240;
@@ -1262,6 +1360,7 @@
       function initializeGame() {
         goal.top = 325 - getGoalHeight() / 2;
         goal.bottom = 325 + getGoalHeight() / 2;
+        bindLayerTabs();
         bindUpgradeTabs();
         bindUpgradeButtons();
         bindGameControls();
