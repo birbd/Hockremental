@@ -1,0 +1,1274 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Ice Time — Incremental Hockey</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --navy: #162a3e;
+        --red: #b62934;
+        --muted: #65717b;
+        --paper: #eeece6;
+        --line: #cccfcf;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--navy);
+        font:
+          14px Arial,
+          Helvetica,
+          sans-serif;
+      }
+      main {
+        max-width: 1460px;
+        margin: auto;
+        padding: 24px 30px;
+      }
+      small,
+      .muted {
+        color: var(--muted);
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 370px;
+        gap: 26px;
+      }
+      .rink-container {
+        overflow: hidden;
+        background: #e9f1f3;
+        border: 3px solid #84939c;
+        position: relative;
+      }
+      canvas {
+        display: block;
+        width: 100%;
+        aspect-ratio: 1000/650;
+        cursor: none;
+        touch-action: none;
+      }
+      aside {
+        min-width: 0;
+      }
+      .upgrade-list > .upgrade:first-child {
+        border-top: 0;
+      }
+      .upgrade {
+        border-top: 1px solid var(--line);
+        padding: 17px 0;
+      }
+      .upgrade-header {
+        display: flex;
+        justify-content: space-between;
+        font-size: 14px;
+        font-weight: 700;
+      }
+      .level {
+        font: 11px monospace;
+        color: var(--muted);
+      }
+      .upgrade p {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.6;
+        margin: 8px 0 12px;
+      }
+      button {
+        border: 1px solid var(--navy);
+        border-radius: 0;
+        background: var(--navy);
+        color: white;
+        cursor: pointer;
+        font:
+          bold 12px Arial,
+          sans-serif;
+        padding: 10px 12px;
+      }
+      button:hover:not(:disabled) {
+        background: #294b69;
+      }
+      button:disabled {
+        background: #dddeda;
+        border-color: #c9ccca;
+        color: #7c8386;
+        cursor: default;
+      }
+      .buy {
+        width: 100%;
+        display: flex;
+        justify-content: space-between;
+      }
+      button:focus-visible {
+        outline: 3px solid var(--red);
+        outline-offset: 3px;
+      }
+      .controls {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .secondary {
+        background: transparent;
+        color: var(--navy);
+        border-color: #aab1b5;
+        font-weight: 400;
+      }
+      .secondary:hover:not(:disabled) {
+        background: #dde0df;
+      }
+      .toast {
+        position: absolute;
+        left: 50%;
+        top: 30%;
+        transform: translate(-50%, -50%) rotate(-4deg);
+        pointer-events: none;
+        text-align: center;
+        color: var(--red);
+        font:
+          900 italic 48px Arial,
+          sans-serif;
+        opacity: 0;
+        transition: opacity 0.15s;
+        white-space: nowrap;
+      }
+      .toast small {
+        display: block;
+        color: var(--navy);
+        font: bold 16px monospace;
+        letter-spacing: 0;
+        margin-top: 4px;
+      }
+      .toast.show {
+        opacity: 1;
+      }
+      @media (max-width: 1000px) {
+        main {
+          padding: 16px;
+        }
+        .layout {
+          grid-template-columns: 1fr;
+        }
+        .upgrade-list {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 0 24px;
+        }
+      }
+      @media (max-width: 540px) {
+        main {
+          padding: 10px;
+        }
+        .upgrade-list {
+          display: block;
+        }
+        .toast {
+          font-size: 30px;
+        }
+      }
+      .layer-tabs {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        border-bottom: 1px solid var(--navy);
+        margin: 0 0 16px;
+      }
+      .layer-tab {
+        display: block;
+        background: var(--navy);
+        color: white;
+        border-bottom: 3px solid var(--red);
+        font:
+          bold 13px Arial,
+          sans-serif;
+        padding: 12px 20px;
+      }
+      .points-counter {
+        display: flex;
+        align-items: baseline;
+        gap: 12px;
+        padding: 0 4px;
+        font-size: 12px;
+      }
+      .points-counter strong {
+        font:
+          bold 24px "Courier New",
+          monospace;
+        font-variant-numeric: tabular-nums;
+      }
+      .upgrade-tabs {
+        display: flex;
+        border-bottom: 3px solid var(--red);
+        gap: 0;
+      }
+      .upgrade-tab {
+        flex: 1;
+        min-width: 0;
+        padding: 12px 6px;
+        background: transparent;
+        color: var(--navy);
+        border: 1px solid var(--line);
+        border-bottom: 0;
+        font-size: 11px;
+      }
+      .upgrade-tab[aria-selected="true"] {
+        background: var(--navy);
+        color: white;
+      }
+      .upgrade-tab:hover:not(:disabled) {
+        background: #dce1e2;
+        color: var(--navy);
+      }
+      .upgrade-list {
+        max-height: 690px;
+        overflow-y: auto;
+        padding: 0 8px 0 0;
+        scrollbar-width: thin;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      .streak-meter {
+        position: absolute;
+        left: 16px;
+        top: 14px;
+        font: bold 12px monospace;
+        color: var(--navy);
+        padding: 7px 10px;
+        background: #f4f7f4e8;
+        border-left: 3px solid var(--red);
+      }
+      @media (max-width: 1000px) {
+        .upgrade-list {
+          max-height: none;
+        }
+      }
+      @media (max-width: 540px) {
+        .points-counter {
+          gap: 7px;
+        }
+        .points-counter strong {
+          font-size: 20px;
+        }
+        .upgrade-tab {
+          font-size: 10px;
+          padding: 12px 3px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <nav class="layer-tabs" aria-label="Prestige layers">
+        <span class="layer-tab" aria-current="page">Rink</span>
+        <div class="points-counter"><span>Points</span><strong id="points">0</strong></div>
+      </nav>
+      <div class="layout">
+        <section>
+          <div class="rink-container">
+            <canvas
+              id="rink"
+              width="1000"
+              height="650"
+              aria-label="Hockey rink. Move your mouse or drag to hit the puck into the goal on the right."
+            ></canvas>
+            <div class="streak-meter" id="streakMeter" hidden></div>
+            <div class="toast" id="toast">GOAL!<small>+10 points</small></div>
+          </div>
+          <div class="controls"><button class="secondary" id="reset">Reset pucks</button></div>
+        </section>
+        <aside aria-label="Upgrades">
+          <div class="upgrade-tabs" role="tablist" aria-label="Upgrade categories">
+            <button
+              class="upgrade-tab"
+              id="tab-rink"
+              role="tab"
+              aria-controls="panel-rink"
+              aria-selected="true"
+              tabindex="0"
+              data-tab="rink"
+            >
+              Rink Upgrades</button
+            ><button
+              class="upgrade-tab"
+              id="tab-equipment"
+              role="tab"
+              aria-controls="panel-equipment"
+              aria-selected="false"
+              tabindex="-1"
+              data-tab="equipment"
+            >
+              Equipment Room</button
+            ><button
+              class="upgrade-tab"
+              id="tab-hiring"
+              role="tab"
+              aria-controls="panel-hiring"
+              aria-selected="false"
+              tabindex="-1"
+              data-tab="hiring"
+            >
+              Hiring Roster
+            </button>
+          </div>
+          <div class="upgrade-list" role="tabpanel" id="panel-rink" aria-labelledby="tab-rink">
+            <div class="upgrade">
+              <div class="upgrade-header">
+                Goal bonus<span class="level" id="bonusLevel"></span>
+              </div>
+              <p id="bonusEffect"></p>
+              <button class="buy" data-buy="bonus">
+                <span>Upgrade</span><span id="bonusCost"></span>
+              </button>
+            </div>
+            <div class="upgrade">
+              <div class="upgrade-header">Fresh ice<span class="level" id="iceLevel"></span></div>
+              <p id="iceEffect"></p>
+              <button class="buy" data-buy="ice">
+                <span>Upgrade</span><span id="iceCost"></span>
+              </button>
+            </div>
+            <div class="upgrade">
+              <div class="upgrade-header">
+                Better boards<span class="level" id="boardsLevel"></span>
+              </div>
+              <p id="boardsEffect"></p>
+              <button class="buy" data-buy="boards">
+                <span>Upgrade</span><span id="boardsCost"></span>
+              </button>
+            </div>
+            <div class="upgrade">
+              <div class="upgrade-header">
+                Scoring streak<span class="level" id="streakLevel"></span>
+              </div>
+              <p id="streakEffect"></p>
+              <button class="buy" data-buy="streak">
+                <span>Upgrade</span><span id="streakCost"></span>
+              </button>
+            </div>
+            <div class="upgrade">
+              <div class="upgrade-header">
+                Scoring time<span class="level" id="timeLevel"></span>
+              </div>
+              <p id="timeEffect"></p>
+              <button class="buy" data-buy="time">
+                <span>Upgrade</span><span id="timeCost"></span>
+              </button>
+            </div>
+            <div class="upgrade">
+              <div class="upgrade-header">
+                Bank-shot bonus<span class="level" id="bankLevel"></span>
+              </div>
+              <p id="bankEffect"></p>
+              <button class="buy" data-buy="bank">
+                <span>Upgrade</span><span id="bankCost"></span>
+              </button>
+            </div>
+          </div>
+          <div
+            class="upgrade-list"
+            role="tabpanel"
+            id="panel-equipment"
+            aria-labelledby="tab-equipment"
+            hidden
+          >
+            <div class="upgrade">
+              <div class="upgrade-header">
+                Longer blade<span class="level" id="bladeLevel"></span>
+              </div>
+              <p id="bladeEffect"></p>
+              <button class="buy" data-buy="blade">
+                <span>Upgrade</span><span id="bladeCost"></span>
+              </button>
+            </div>
+            <div class="upgrade">
+              <div class="upgrade-header">
+                Wider goal<span class="level" id="widthLevel"></span>
+              </div>
+              <p id="widthEffect"></p>
+              <button class="buy" data-buy="width">
+                <span>Upgrade</span><span id="widthCost"></span>
+              </button>
+            </div>
+            <div class="upgrade">
+              <div class="upgrade-header">
+                Puck return<span class="level" id="returnLevel"></span>
+              </div>
+              <p id="returnEffect"></p>
+              <button class="buy" data-buy="return">
+                <span>Upgrade</span><span id="returnCost"></span>
+              </button>
+            </div>
+            <div class="upgrade">
+              <div class="upgrade-header">
+                Golden pucks<span class="level" id="goldLevel"></span>
+              </div>
+              <p id="goldEffect"></p>
+              <button class="buy" data-buy="gold">
+                <span>Upgrade</span><span id="goldCost"></span>
+              </button>
+            </div>
+            <div class="upgrade">
+              <div class="upgrade-header">
+                More pucks<span class="level" id="pucksLevel"></span>
+              </div>
+              <p id="pucksEffect"></p>
+              <button class="buy" data-buy="pucks">
+                <span>Upgrade</span><span id="pucksCost"></span>
+              </button>
+            </div>
+          </div>
+          <div
+            class="upgrade-list"
+            role="tabpanel"
+            id="panel-hiring"
+            aria-labelledby="tab-hiring"
+            hidden
+          >
+            <div class="upgrade">
+              <div class="upgrade-header">
+                Additional shooters<span class="level" id="autoLevel"></span>
+              </div>
+              <p id="autoEffect"></p>
+              <button class="buy" data-buy="auto">
+                <span>Hire</span><span id="autoCost"></span>
+              </button>
+            </div>
+            <div class="upgrade">
+              <div class="upgrade-header">
+                Shooter accuracy<span class="level" id="accuracyLevel"></span>
+              </div>
+              <p id="accuracyEffect"></p>
+              <button class="buy" data-buy="accuracy">
+                <span>Upgrade</span><span id="accuracyCost"></span>
+              </button>
+            </div>
+            <div class="upgrade">
+              <div class="upgrade-header">
+                Shooter multishot<span class="level" id="multiLevel"></span>
+              </div>
+              <p id="multiEffect"></p>
+              <button class="buy" data-buy="multi">
+                <span>Upgrade</span><span id="multiCost"></span>
+              </button>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </main>
+    <script>
+      "use strict";
+
+      const canvas = document.getElementById("rink");
+      const drawingContext = canvas.getContext("2d");
+      const getElement = (id) => document.getElementById(id);
+      const RINK_WIDTH = 1000;
+      const RINK_HEIGHT = 650;
+      const PUCK_RADIUS = 15;
+      const rinkBounds = {
+        left: 42,
+        right: 958,
+        top: 42,
+        bottom: 608,
+      };
+      const goal = {
+        top: 242,
+        bottom: 408,
+      };
+
+      const upgradeLimits = {
+        bonus: 100,
+        power: 100,
+        auto: 20,
+        pucks: 19,
+        ice: 12,
+        boards: 10,
+        streak: 20,
+        time: 12,
+        bank: 20,
+        blade: 12,
+        width: 12,
+        return: 10,
+        gold: 20,
+        accuracy: 10,
+        multi: 4,
+      };
+
+      const defaultState = {
+        points: 0,
+        goals: 0,
+        bonus: 0,
+        power: 0,
+        auto: 0,
+        pucks: 0,
+        ice: 0,
+        boards: 0,
+        streak: 0,
+        time: 0,
+        bank: 0,
+        blade: 0,
+        width: 0,
+        return: 0,
+        gold: 0,
+        accuracy: 0,
+        multi: 0,
+      };
+
+      let state = {
+        ...defaultState,
+      };
+      let canSaveProgress = true;
+
+      function loadSavedState() {
+        try {
+          const savedState = JSON.parse(localStorage.getItem("icetime-v1"));
+          if (savedState && typeof savedState === "object") {
+            for (const key in defaultState) {
+              if (Number.isSafeInteger(savedState[key]) && savedState[key] >= 0) {
+                state[key] = Math.min(
+                  savedState[key],
+                  key === "points" || key === "goals" ? 1e12 : upgradeLimits[key],
+                );
+              }
+            }
+          }
+        } catch (error) {
+          canSaveProgress = false;
+        }
+      }
+      loadSavedState();
+
+      function createPuck(index = 0) {
+        return {
+          x: 210 + (index % 5) * 90 + Math.random() * 20,
+          y: 170 + (Math.floor(index / 5) % 4) * 95 + Math.random() * 45,
+          velocityX: 0,
+          velocityY: 0,
+          respawnTimeLeft: 0,
+          trail: [],
+          hasBanked: false,
+          isGolden: Math.random() < state.gold * 0.025,
+        };
+      }
+      let pucks = Array.from(
+        {
+          length: state.pucks + 1,
+        },
+        (_, index) => createPuck(index),
+      );
+      let stick = {
+        x: 270,
+        y: 365,
+      };
+      let pointer = {
+        x: 270,
+        y: 365,
+        isActive: false,
+        isPressed: false,
+      };
+      let timeSinceAutoShot = 0;
+      let nextAutoPuckIndex = 0;
+      let particles = [];
+      let goalToastTimeLeft = 0;
+      let physicsAccumulator = 0;
+      let previousFrameTime = 0;
+      let timeSinceSave = 0;
+      let elapsedGameTime = 0;
+      let lastGoalTime = -Infinity;
+      let scoringStreak = 0;
+      const formatNumber = (number) => Math.floor(number).toLocaleString();
+      const getGoalValue = (level = state.bonus) => Math.round(10 * Math.pow(1.5, level));
+      const getShooterInterval = () => 8;
+      const getBladeHalfLength = () => 28 + state.blade * 4;
+      const getGoalHeight = () => 166 + state.width * 12;
+      const getPuckReturnDelay = () => 0.8 * Math.pow(0.84, state.return);
+      const getStreakWindow = () => 3 + state.time;
+      const getBoardBounceFactor = () => 0.85 + state.boards * 0.014;
+
+      const upgradeDefinitions = {
+        bonus: {
+          base: 30,
+          effect: (level) => formatNumber(getGoalValue(level)) + " pts / goal",
+        },
+        ice: {
+          base: 45,
+          effect: (level) => Math.round((1 - Math.pow(0.85, level)) * 100) + "% less friction",
+        },
+        boards: {
+          base: 55,
+          effect: (level) => (85 + level * 1.4).toFixed(1) + "% speed kept on board hits",
+        },
+        streak: {
+          base: 75,
+          effect: (level) => "+" + level * 10 + "% per quick goal · up to 10 stacks",
+        },
+        time: {
+          base: 60,
+          effect: (level) => 3 + level + "s between streak goals",
+        },
+        bank: {
+          base: 70,
+          effect: (level) => "+" + level * 25 + "% for a bank-shot goal",
+        },
+        blade: {
+          base: 45,
+          effect: (level) => 56 + level * 8 + " px blade length",
+        },
+        width: {
+          base: 90,
+          effect: (level) => 166 + level * 12 + " px goal opening",
+        },
+        return: {
+          base: 50,
+          effect: (level) => (0.8 * Math.pow(0.84, level)).toFixed(2) + "s puck respawn",
+        },
+        gold: {
+          base: 120,
+          effect: (level) => (level * 2.5).toFixed(1) + "% chance of a 5× puck on respawn",
+        },
+        pucks: {
+          base: 50,
+          effect: (level) => level + 1 + " pucks on the ice",
+        },
+        auto: {
+          base: 60,
+          effect: (level) => level + " shooters · each fires every 8s",
+        },
+        accuracy: {
+          base: 65,
+          effect: (level) => "Aim spread ±" + Math.round(180 * Math.pow(0.76, level)) + " px",
+        },
+        multi: {
+          base: 140,
+          effect: (level) => level + 1 + " distinct pucks per shot",
+        },
+      };
+      const getUpgradeCost = (upgradeKey) =>
+        Math.ceil(
+          upgradeDefinitions[upgradeKey].base *
+            Math.pow(upgradeKey === "auto" ? 1.85 : 1.7, state[upgradeKey]),
+        );
+
+      function save() {
+        try {
+          localStorage.setItem("icetime-v1", JSON.stringify(state));
+        } catch (error) {
+          canSaveProgress = false;
+        }
+      }
+
+      function updateUI() {
+        getElement("points").textContent = formatNumber(state.points);
+        for (const [upgradeKey, upgradeDefinition] of Object.entries(upgradeDefinitions)) {
+          const level = state[upgradeKey];
+          const isMaxLevel = level >= upgradeLimits[upgradeKey];
+          getElement(upgradeKey + "Level").textContent = "LV " + level;
+          getElement(upgradeKey + "Cost").textContent = isMaxLevel
+            ? "MAX"
+            : formatNumber(getUpgradeCost(upgradeKey)) + " pts";
+          getElement(upgradeKey + "Effect").textContent =
+            upgradeDefinition.effect(level) +
+            (isMaxLevel ? "" : " → " + upgradeDefinition.effect(level + 1));
+          document.querySelector('[data-buy="' + upgradeKey + '"]').disabled =
+            isMaxLevel || state.points < getUpgradeCost(upgradeKey);
+        }
+      }
+
+      function selectUpgradeTab(key) {
+        document.querySelectorAll("[data-tab]").forEach((button) => {
+          const active = button.dataset.tab === key;
+          button.setAttribute("aria-selected", String(active));
+          button.tabIndex = active ? 0 : -1;
+          getElement("panel-" + button.dataset.tab).hidden = !active;
+        });
+      }
+
+      function bindUpgradeTabs() {
+        document.querySelectorAll("[data-tab]").forEach((button) => {
+          button.onclick = () => selectUpgradeTab(button.dataset.tab);
+          button.onkeydown = (event) => {
+            const tabs = [...document.querySelectorAll("[data-tab]")];
+            const index = tabs.indexOf(button);
+            let next;
+            if (event.key === "ArrowRight") {
+              next = (index + 1) % tabs.length;
+            } else if (event.key === "ArrowLeft") {
+              next = (index + tabs.length - 1) % tabs.length;
+            } else if (event.key === "Home") {
+              next = 0;
+            } else if (event.key === "End") {
+              next = tabs.length - 1;
+            } else {
+              return;
+            }
+            event.preventDefault();
+            selectUpgradeTab(tabs[next].dataset.tab);
+            tabs[next].focus();
+          };
+        });
+      }
+
+      function bindUpgradeButtons() {
+        document.querySelectorAll("[data-buy]").forEach(
+          (button) =>
+            (button.onclick = () => {
+              const upgradeKey = button.dataset.buy;
+              const purchaseCost = getUpgradeCost(upgradeKey);
+              if (state.points < purchaseCost || state[upgradeKey] >= upgradeLimits[upgradeKey]) {
+                return;
+              }
+              state.points -= purchaseCost;
+              state[upgradeKey]++;
+              if (upgradeKey === "pucks") {
+                pucks.push(createPuck(pucks.length));
+              }
+              goal.top = 325 - getGoalHeight() / 2;
+              goal.bottom = 325 + getGoalHeight() / 2;
+              updateUI();
+              save();
+            }),
+        );
+      }
+
+      function fireAutomaticShot() {
+        const availablePucks = pucks.filter((trailPoint) => !trailPoint.respawnTimeLeft);
+        if (!availablePucks.length) {
+          return;
+        }
+        const shotCount = Math.min(availablePucks.length, 1 + state.multi);
+        for (let index = 0; index < shotCount; index++) {
+          const puck = availablePucks[(nextAutoPuckIndex + index) % availablePucks.length];
+          const aimSpread = 180 * Math.pow(0.76, state.accuracy);
+          const targetY = 325 + (Math.random() * 2 - 1) * aimSpread;
+          const distanceX = 990 - puck.x;
+          const distanceY = targetY - puck.y;
+          const distance = Math.hypot(distanceX, distanceY) || 1;
+          puck.velocityX = (distanceX / distance) * 1050;
+          puck.velocityY = (distanceY / distance) * 1050;
+          puck.hasBanked = false;
+        }
+        nextAutoPuckIndex = (nextAutoPuckIndex + shotCount) % availablePucks.length;
+      }
+
+      function resetPucks() {
+        pucks = Array.from(
+          {
+            length: state.pucks + 1,
+          },
+          (_, index) => createPuck(index),
+        );
+        timeSinceAutoShot = 0;
+        pointer.isActive = false;
+      }
+
+      function scoreGoal(puck) {
+        if (puck.respawnTimeLeft) {
+          return;
+        }
+        scoringStreak =
+          elapsedGameTime - lastGoalTime <= getStreakWindow() ? Math.min(10, scoringStreak + 1) : 0;
+        lastGoalTime = elapsedGameTime;
+        const streakMultiplier = 1 + scoringStreak * state.streak * 0.1;
+        const bankMultiplier = puck.hasBanked ? 1 + state.bank * 0.25 : 1;
+        const reward = Math.round(
+          getGoalValue() * streakMultiplier * bankMultiplier * (puck.isGolden ? 5 : 1),
+        );
+        state.goals++;
+        state.points += reward;
+        puck.respawnTimeLeft = getPuckReturnDelay();
+        puck.velocityX = 0;
+        puck.velocityY = 0;
+        puck.trail = [];
+        goalToastTimeLeft = 0.8;
+        getElement("toast").innerHTML = "GOAL!<small>+" + formatNumber(reward) + " points</small>";
+        getElement("toast").classList.add("show");
+        for (let index = 0; index < 14; index++) {
+          particles.push({
+            x: 935,
+            y: puck.y,
+            velocityX: -Math.random() * 350,
+            velocityY: (Math.random() - 0.5) * 300,
+            remainingLife: 0.7,
+          });
+        }
+        updateUI();
+        save();
+      }
+
+      function updatePointerPosition(event) {
+        const boundsRect = canvas.getBoundingClientRect();
+        pointer.x = Math.max(
+          42,
+          Math.min(958, ((event.clientX - boundsRect.left) * RINK_WIDTH) / boundsRect.width),
+        );
+        pointer.y = Math.max(
+          42,
+          Math.min(608, ((event.clientY - boundsRect.top) * RINK_HEIGHT) / boundsRect.height),
+        );
+        if (!pointer.isActive) {
+          stick.x = pointer.x;
+          stick.y = pointer.y;
+        }
+        pointer.isActive = true;
+      }
+
+      function bindGameControls() {
+        canvas.addEventListener("pointermove", updatePointerPosition);
+        canvas.addEventListener("pointerdown", (event) => {
+          updatePointerPosition(event);
+          pointer.isPressed = true;
+          canvas.setPointerCapture(event.pointerId);
+        });
+        canvas.addEventListener("pointerup", () => (pointer.isPressed = false));
+        canvas.addEventListener("pointercancel", () => {
+          pointer.isPressed = false;
+          pointer.isActive = false;
+        });
+        canvas.addEventListener("pointerleave", () => {
+          if (!pointer.isPressed) {
+            pointer.isActive = false;
+          }
+        });
+        getElement("reset").onclick = resetPucks;
+        addEventListener("keydown", (event) => {
+          if (event.target.tagName === "BUTTON") {
+            return;
+          }
+          if (event.key.toLowerCase() === "r") {
+            resetPucks();
+          }
+        });
+        addEventListener("pagehide", save);
+        document.addEventListener("visibilitychange", () => {
+          previousFrameTime = 0;
+          physicsAccumulator = 0;
+          pointer.isActive = false;
+        });
+      }
+
+      function updateGamePhysics(deltaTime) {
+        elapsedGameTime += deltaTime;
+        updateGoalEffects(deltaTime);
+        updateAutoShooters(deltaTime);
+        const previousStickPosition = {
+          x: stick.x,
+          y: stick.y,
+        };
+        moveStick(deltaTime);
+        updatePucks(deltaTime, previousStickPosition);
+        resolvePuckCollisions();
+      }
+
+      function updateGoalEffects(deltaTime) {
+        goalToastTimeLeft -= deltaTime;
+        if (goalToastTimeLeft <= 0) {
+          getElement("toast").classList.remove("show");
+        }
+        particles = particles.filter((trailPoint) => trailPoint.remainingLife > 0);
+        for (const particle of particles) {
+          particle.x += particle.velocityX * deltaTime;
+          particle.y += particle.velocityY * deltaTime;
+          particle.remainingLife -= deltaTime;
+        }
+      }
+
+      function updateAutoShooters(deltaTime) {
+        if (state.auto) {
+          timeSinceAutoShot += deltaTime;
+          const cadence = getShooterInterval() / state.auto;
+          while (timeSinceAutoShot >= cadence) {
+            timeSinceAutoShot -= cadence;
+            fireAutomaticShot();
+          }
+        }
+      }
+
+      function moveStick(deltaTime) {
+        if (pointer.isActive) {
+          const distanceX = pointer.x - stick.x;
+          const distanceY = pointer.y - stick.y;
+          const distance = Math.hypot(distanceX, distanceY);
+          const maximumMovement = 2400 * deltaTime;
+          if (distance) {
+            stick.x += distanceX * Math.min(1, maximumMovement / distance);
+            stick.y += distanceY * Math.min(1, maximumMovement / distance);
+          }
+        }
+      }
+
+      function updatePucks(deltaTime, previousStickPosition) {
+        for (let index = 0; index < pucks.length; index++) {
+          const puck = pucks[index];
+          if (puck.respawnTimeLeft > 0) {
+            puck.respawnTimeLeft -= deltaTime;
+            if (puck.respawnTimeLeft <= 0) {
+              pucks[index] = createPuck(index);
+            }
+            continue;
+          }
+          hitPuckWithStick(puck, deltaTime, previousStickPosition.x, previousStickPosition.y);
+          if (movePuck(puck, deltaTime)) {
+            continue;
+          }
+          resolveGoalpostCollision(puck);
+        }
+      }
+
+      function hitPuckWithStick(puck, deltaTime, previousStickX, previousStickY) {
+        if (pointer.isActive) {
+          const closestBladeX = stick.x;
+          const closestBladeY = Math.max(
+            stick.y - getBladeHalfLength(),
+            Math.min(stick.y + getBladeHalfLength(), puck.y),
+          );
+          const distanceX = puck.x - closestBladeX;
+          const distanceY = puck.y - closestBladeY;
+          const distance = Math.hypot(distanceX, distanceY);
+          const minimumDistance = PUCK_RADIUS + 7;
+          if (distance < minimumDistance) {
+            const normalX = distance > 0.01 ? distanceX / distance : 1;
+            const normalY = distance > 0.01 ? distanceY / distance : 0;
+            const stickVelocityX = (stick.x - previousStickX) / deltaTime;
+            const stickVelocityY = (stick.y - previousStickY) / deltaTime;
+            const relativeSpeed =
+              (puck.velocityX - stickVelocityX) * normalX +
+              (puck.velocityY - stickVelocityY) * normalY;
+            puck.x += normalX * (minimumDistance - distance + 0.1);
+            puck.y += normalY * (minimumDistance - distance + 0.1);
+            if (relativeSpeed < 0) {
+              puck.hasBanked = false;
+              const impulse = -relativeSpeed * 1.65 * (1 + 0.15 * state.power);
+              puck.velocityX += normalX * impulse;
+              puck.velocityY += normalY * impulse;
+            }
+          }
+        }
+      }
+
+      function movePuck(puck, deltaTime) {
+        const speed = Math.hypot(puck.velocityX, puck.velocityY);
+        if (speed > 2000) {
+          puck.velocityX *= 2000 / speed;
+          puck.velocityY *= 2000 / speed;
+        }
+        puck.x += puck.velocityX * deltaTime;
+        puck.y += puck.velocityY * deltaTime;
+        const drag = Math.exp(-0.26 * Math.pow(0.85, state.ice) * deltaTime);
+        puck.velocityX *= drag;
+        puck.velocityY *= drag;
+        if (puck.y < rinkBounds.top + PUCK_RADIUS) {
+          puck.y = rinkBounds.top + PUCK_RADIUS;
+          puck.hasBanked = true;
+          puck.velocityY = Math.abs(puck.velocityY) * getBoardBounceFactor();
+        }
+        if (puck.y > rinkBounds.bottom - PUCK_RADIUS) {
+          puck.y = rinkBounds.bottom - PUCK_RADIUS;
+          puck.hasBanked = true;
+          puck.velocityY = -Math.abs(puck.velocityY) * getBoardBounceFactor();
+        }
+        if (puck.x < rinkBounds.left + PUCK_RADIUS) {
+          puck.x = rinkBounds.left + PUCK_RADIUS;
+          puck.hasBanked = true;
+          puck.velocityX = Math.abs(puck.velocityX) * getBoardBounceFactor();
+        }
+        if (puck.x > rinkBounds.right - PUCK_RADIUS) {
+          if (puck.y > goal.top + PUCK_RADIUS && puck.y < goal.bottom - PUCK_RADIUS) {
+            if (puck.x > rinkBounds.right + PUCK_RADIUS) {
+              scoreGoal(puck);
+              return true;
+            }
+          } else {
+            puck.x = rinkBounds.right - PUCK_RADIUS;
+            puck.hasBanked = true;
+            puck.velocityX = -Math.abs(puck.velocityX) * getBoardBounceFactor();
+          }
+        }
+        return false;
+      }
+
+      function resolveGoalpostCollision(puck) {
+        for (const y of [goal.top, goal.bottom]) {
+          let distanceX = puck.x - 958;
+          let distanceY = puck.y - y;
+          let distance = Math.hypot(distanceX, distanceY);
+          if (distance < PUCK_RADIUS + 7 && distance > 0) {
+            let normalX = distanceX / distance;
+            let normalY = distanceY / distance;
+            puck.x = 958 + normalX * (PUCK_RADIUS + 7);
+            puck.y = y + normalY * (PUCK_RADIUS + 7);
+            let speedAlongNormal = puck.velocityX * normalX + puck.velocityY * normalY;
+            if (speedAlongNormal < 0) {
+              puck.velocityX -= 1.85 * speedAlongNormal * normalX;
+              puck.velocityY -= 1.85 * speedAlongNormal * normalY;
+            }
+          }
+        }
+      }
+
+      function resolvePuckCollisions() {
+        for (let index = 0; index < pucks.length; index++) {
+          for (let j = index + 1; j < pucks.length; j++) {
+            const firstPuck = pucks[index];
+            const secondPuck = pucks[j];
+            if (firstPuck.respawnTimeLeft || secondPuck.respawnTimeLeft) {
+              continue;
+            }
+            const distanceX = secondPuck.x - firstPuck.x;
+            const distanceY = secondPuck.y - firstPuck.y;
+            const distance = Math.hypot(distanceX, distanceY);
+            if (distance < 2 * PUCK_RADIUS) {
+              const normalX = distance > 0.001 ? distanceX / distance : 1;
+              const normalY = distance > 0.001 ? distanceY / distance : 0;
+              const overlap = (2 * PUCK_RADIUS - distance) / 2 + 0.01;
+              firstPuck.x -= normalX * overlap;
+              firstPuck.y -= normalY * overlap;
+              secondPuck.x += normalX * overlap;
+              secondPuck.y += normalY * overlap;
+              const relativeSpeed =
+                (secondPuck.velocityX - firstPuck.velocityX) * normalX +
+                (secondPuck.velocityY - firstPuck.velocityY) * normalY;
+              if (relativeSpeed < 0) {
+                const impulse = -relativeSpeed * 0.94;
+                firstPuck.velocityX -= impulse * normalX;
+                firstPuck.velocityY -= impulse * normalY;
+                secondPuck.velocityX += impulse * normalX;
+                secondPuck.velocityY += impulse * normalY;
+              }
+            }
+          }
+        }
+      }
+
+      function drawLine(x1, y1, x2, y2, color, width = 2) {
+        drawingContext.strokeStyle = color;
+        drawingContext.lineWidth = width;
+        drawingContext.beginPath();
+        drawingContext.moveTo(x1, y1);
+        drawingContext.lineTo(x2, y2);
+        drawingContext.stroke();
+      }
+
+      function drawCircle(x, y, radius, color, width = 2) {
+        drawingContext.strokeStyle = color;
+        drawingContext.lineWidth = width;
+        drawingContext.beginPath();
+        drawingContext.arc(x, y, radius, 0, Math.PI * 2);
+        drawingContext.stroke();
+      }
+
+      function renderGame() {
+        drawRink();
+        drawGoal();
+        drawPucks();
+        drawStick();
+        drawParticles();
+        drawAutoShooterMeter();
+        drawStreakMeter();
+      }
+
+      function drawRink() {
+        drawingContext.clearRect(0, 0, RINK_WIDTH, RINK_HEIGHT);
+        drawingContext.fillStyle = "#dcecef";
+        drawingContext.fillRect(0, 0, RINK_WIDTH, RINK_HEIGHT);
+        drawingContext.save();
+        drawingContext.beginPath();
+        drawingContext.roundRect(36, 36, 928, 578, 88);
+        drawingContext.fillStyle = "#f0f8f8";
+        drawingContext.fill();
+        drawingContext.clip();
+        for (let index = 0; index < 110; index++) {
+          const x = (index * 137) % 1000;
+          const y = (index * 83) % 650;
+          drawLine(x, y, x + 40 + (index % 20), y - 15, "#9ebcc010", 1);
+        }
+        drawingContext.fillStyle = "#d9edef";
+        drawingContext.fillRect(500, 42, 458, 566);
+        drawLine(500, 42, 500, 608, "#c5798055", 5);
+        drawLine(295, 42, 295, 608, "#6caccb66", 7);
+        drawLine(730, 42, 730, 608, "#6caccb66", 7);
+        drawCircle(500, 325, 81, "#72a7b451", 3);
+        drawCircle(500, 325, 7, "#72a7b4", 4);
+        for (const x of [185, 825]) {
+          for (const y of [180, 470]) {
+            drawCircle(x, y, 62, "#c5798044");
+            drawCircle(x, y, 4, "#c5798088", 3);
+          }
+        }
+        drawingContext.fillStyle = "#81b9cb22";
+        drawingContext.beginPath();
+        drawingContext.arc(958, 325, 88, Math.PI / 2, Math.PI * 1.5);
+        drawingContext.fill();
+        drawingContext.restore();
+        drawingContext.strokeStyle = "#b7cdd2";
+        drawingContext.lineWidth = 9;
+        drawingContext.beginPath();
+        drawingContext.roundRect(36, 36, 928, 578, 88);
+        drawingContext.stroke();
+        drawLine(958, goal.top, 958, goal.bottom, "#e4f1f3", 13);
+      }
+
+      function drawGoal() {
+        drawingContext.fillStyle = "#c2d7dc";
+        drawingContext.fillRect(961, goal.top, 36, getGoalHeight());
+        for (let y = goal.top; y <= goal.bottom; y += 12) {
+          drawLine(962, y, 994, y, "#8eaeb9", 1);
+        }
+        for (let x = 963; x < 997; x += 10) {
+          drawLine(x, goal.top, x, goal.bottom, "#8eaeb9", 1);
+        }
+        drawLine(958, goal.top, 995, goal.top, "#cf5a54", 7);
+        drawLine(958, goal.bottom, 995, goal.bottom, "#cf5a54", 7);
+        drawLine(995, goal.top, 995, goal.bottom, "#cf5a54", 6);
+        drawLine(958, goal.top, 958, goal.bottom, "#cf5a54", 3);
+        for (const y of [goal.top, goal.bottom]) {
+          drawingContext.beginPath();
+          drawingContext.arc(958, y, 7, 0, 7);
+          drawingContext.fillStyle = "#df625c";
+          drawingContext.fill();
+        }
+      }
+
+      function drawPucks() {
+        for (const puck of pucks) {
+          if (puck.respawnTimeLeft > 0) {
+            continue;
+          }
+          puck.trail.push({
+            x: puck.x,
+            y: puck.y,
+          });
+          if (puck.trail.length > 12) {
+            puck.trail.shift();
+          }
+          puck.trail.forEach((trailPoint, index) => {
+            drawingContext.globalAlpha = (index / puck.trail.length) * 0.09;
+            drawingContext.beginPath();
+            drawingContext.arc(
+              trailPoint.x,
+              trailPoint.y,
+              (PUCK_RADIUS * index) / puck.trail.length,
+              0,
+              7,
+            );
+            drawingContext.fillStyle = "#344f61";
+            drawingContext.fill();
+          });
+          drawingContext.globalAlpha = 1;
+          drawingContext.beginPath();
+          drawingContext.ellipse(puck.x + 3, puck.y + 6, 17, 12, 0, 0, 7);
+          drawingContext.fillStyle = "#24425130";
+          drawingContext.fill();
+          drawingContext.beginPath();
+          drawingContext.arc(puck.x, puck.y, PUCK_RADIUS, 0, 7);
+          drawingContext.fillStyle = puck.isGolden ? "#c19428" : "#14212c";
+          drawingContext.fill();
+          drawCircle(puck.x, puck.y, PUCK_RADIUS - 4, puck.isGolden ? "#f4dc86" : "#354754", 2);
+          drawLine(puck.x - 5, puck.y - 5, puck.x + 4, puck.y - 7, "#617687", 2);
+        }
+      }
+
+      function drawStick() {
+        drawingContext.save();
+        drawingContext.translate(stick.x, stick.y);
+        drawingContext.lineCap = "round";
+        const bladeHalfLength = getBladeHalfLength();
+        drawLine(-62, -bladeHalfLength - 121, -24, -bladeHalfLength - 29, "#23394c25", 12);
+        drawLine(-24, -bladeHalfLength - 29, 2, -bladeHalfLength + 3, "#23394c25", 12);
+        drawLine(-66, -bladeHalfLength - 125, -28, -bladeHalfLength - 33, "#b98d58", 8);
+        drawLine(-28, -bladeHalfLength - 33, 0, -bladeHalfLength, "#b98d58", 9);
+        drawLine(-66, -bladeHalfLength - 125, -56, -bladeHalfLength - 102, "#253747", 10);
+        drawingContext.fillStyle = "#1e2c36";
+        drawingContext.beginPath();
+        drawingContext.roundRect(
+          -7,
+          -bladeHalfLength - 6,
+          14,
+          bladeHalfLength * 2 + 12,
+          [6, 9, 9, 4],
+        );
+        drawingContext.fill();
+        for (let y = -bladeHalfLength + 12; y < bladeHalfLength; y += 7) {
+          drawLine(-7, y, 7, y - 3, "#d9dddd", 2);
+        }
+        drawingContext.restore();
+      }
+
+      function drawParticles() {
+        for (const particle of particles) {
+          drawingContext.globalAlpha = Math.max(0, particle.remainingLife);
+          drawingContext.fillStyle = particle.remainingLife > 0.5 ? "#77bfb1" : "#234c63";
+          drawingContext.fillRect(particle.x, particle.y, 5, 5);
+        }
+        drawingContext.globalAlpha = 1;
+      }
+
+      function drawAutoShooterMeter() {
+        if (state.auto) {
+          drawingContext.fillStyle = "#a9c7cd";
+          drawingContext.fillRect(75, 575, 130, 4);
+          drawingContext.fillStyle = "#4b8e82";
+          drawingContext.fillRect(
+            75,
+            575,
+            130 * Math.min(1, timeSinceAutoShot / (getShooterInterval() / state.auto)),
+            4,
+          );
+        }
+      }
+
+      function drawStreakMeter() {
+        const activeStreak =
+          state.streak > 0 &&
+          scoringStreak > 0 &&
+          elapsedGameTime - lastGoalTime <= getStreakWindow();
+        getElement("streakMeter").hidden = !activeStreak;
+        if (activeStreak) {
+          getElement("streakMeter").textContent =
+            "×" +
+            (1 + scoringStreak * state.streak * 0.1).toFixed(1) +
+            " · " +
+            Math.max(0, getStreakWindow() - (elapsedGameTime - lastGoalTime)).toFixed(1) +
+            "s";
+        }
+      }
+
+      function animateGame(timestamp) {
+        const frameDeltaTime = previousFrameTime
+          ? Math.min(0.05, (timestamp - previousFrameTime) / 1000)
+          : 0;
+        previousFrameTime = timestamp;
+        physicsAccumulator += frameDeltaTime;
+        while (physicsAccumulator >= 1 / 240) {
+          updateGamePhysics(1 / 240);
+          physicsAccumulator -= 1 / 240;
+        }
+        timeSinceSave += frameDeltaTime;
+        if (timeSinceSave > 10) {
+          save();
+          timeSinceSave = 0;
+        }
+        renderGame();
+        requestAnimationFrame(animateGame);
+      }
+
+      function initializeGame() {
+        goal.top = 325 - getGoalHeight() / 2;
+        goal.bottom = 325 + getGoalHeight() / 2;
+        bindUpgradeTabs();
+        bindUpgradeButtons();
+        bindGameControls();
+        updateUI();
+        requestAnimationFrame(animateGame);
+      }
+      initializeGame();
+    </script>
+  </body>
+</html>
