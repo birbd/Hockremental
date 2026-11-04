@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Hockremental</title>
+    <title>Ice Time — Incremental Hockey</title>
     <style>
       :root {
         color-scheme: light;
@@ -205,6 +205,19 @@
         background: #dce1e2;
         color: var(--navy);
       }
+      #layer-franchise {
+        background: #7143a6;
+        color: white;
+        border-bottom-color: #aa82d4;
+      }
+      #layer-franchise[aria-selected="true"] {
+        background: #583181;
+        border-bottom-color: #d3b4f1;
+      }
+      #layer-franchise:hover:not(:disabled) {
+        background: #8252b9;
+        color: white;
+      }
       @media (max-width: 540px) {
         .layer-tab {
           padding: 12px 10px;
@@ -282,6 +295,87 @@
           padding: 12px 3px;
         }
       }
+      .currency-group {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+      .capital-counter {
+        color: #7143a6;
+      }
+      .layer-tabs {
+        flex-wrap: wrap;
+      }
+      .franchise-tabs {
+        border-bottom-color: #7143a6;
+      }
+      .franchise-tabs .upgrade-tab[aria-selected="true"],
+      .franchise-button {
+        background: #7143a6;
+        color: white;
+        border-color: #7143a6;
+      }
+      .franchise-button:hover:not(:disabled) {
+        background: #583181;
+      }
+      .franchise-button:disabled {
+        background: #dddeda;
+        border-color: #c9ccca;
+        color: #7c8386;
+      }
+      .sale-panel {
+        border: 1px solid var(--line);
+        padding: 14px;
+        margin-bottom: 14px;
+      }
+      .sale-heading {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        font-weight: bold;
+      }
+      .sale-heading strong {
+        color: #7143a6;
+      }
+      .sale-panel p {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.6;
+      }
+      .sale-panel button {
+        width: 100%;
+      }
+      dialog {
+        max-width: 420px;
+        background: var(--paper);
+        color: var(--navy);
+        border: 2px solid #7143a6;
+        padding: 24px;
+      }
+      dialog::backdrop {
+        background: #162a3e80;
+      }
+      dialog h2 {
+        margin-top: 0;
+        font-size: 20px;
+      }
+      dialog p {
+        font-size: 14px;
+        line-height: 1.6;
+      }
+      .dialog-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+      }
+      @media (max-width: 540px) {
+        .currency-group {
+          gap: 8px;
+        }
+        .layer-tabs {
+          gap: 8px;
+        }
+      }
     </style>
   </head>
   <body>
@@ -292,7 +386,7 @@
             class="layer-tab"
             id="layer-rink"
             role="tab"
-            aria-controls="rink-page"
+            aria-controls="rink-upgrades"
             aria-selected="true"
             tabindex="0"
             data-layer="rink"
@@ -307,13 +401,19 @@
             aria-selected="false"
             tabindex="-1"
             data-layer="franchise"
+            hidden
           >
             Franchise
           </button>
         </div>
-        <div class="points-counter"><span>Points</span><strong id="points">0</strong></div>
+        <div class="currency-group">
+          <div class="points-counter"><span>Points</span><strong id="points">0</strong></div>
+          <div class="points-counter capital-counter" id="capitalCounter" hidden>
+            <span>Capital</span><strong id="capital">0</strong>
+          </div>
+        </div>
       </nav>
-      <div class="layout" id="rink-page" role="tabpanel" aria-labelledby="layer-rink">
+      <div class="layout">
         <section>
           <div class="rink-container">
             <canvas
@@ -328,189 +428,343 @@
           <div class="controls"><button class="secondary" id="reset">Reset pucks</button></div>
         </section>
         <aside aria-label="Upgrades">
-          <div class="upgrade-tabs" role="tablist" aria-label="Upgrade categories">
-            <button
-              class="upgrade-tab"
-              id="tab-rink"
-              role="tab"
-              aria-controls="panel-rink"
-              aria-selected="true"
-              tabindex="0"
-              data-tab="rink"
+          <div id="rink-upgrades" role="tabpanel" aria-labelledby="layer-rink">
+            <div class="upgrade-tabs" role="tablist" aria-label="Upgrade categories">
+              <button
+                class="upgrade-tab"
+                id="tab-rink"
+                role="tab"
+                aria-controls="panel-rink"
+                aria-selected="true"
+                tabindex="0"
+                data-tab="rink"
+              >
+                Rink Upgrades</button
+              ><button
+                class="upgrade-tab"
+                id="tab-equipment"
+                role="tab"
+                aria-controls="panel-equipment"
+                aria-selected="false"
+                tabindex="-1"
+                data-tab="equipment"
+              >
+                Equipment Room</button
+              ><button
+                class="upgrade-tab"
+                id="tab-hiring"
+                role="tab"
+                aria-controls="panel-hiring"
+                aria-selected="false"
+                tabindex="-1"
+                data-tab="hiring"
+              >
+                Hiring Roster
+              </button>
+            </div>
+            <div class="upgrade-list" role="tabpanel" id="panel-rink" aria-labelledby="tab-rink">
+              <div class="upgrade">
+                <div class="upgrade-header">
+                  Goal bonus<span class="level" id="bonusLevel"></span>
+                </div>
+                <p id="bonusEffect"></p>
+                <button class="buy" data-buy="bonus">
+                  <span>Upgrade</span><span id="bonusCost"></span>
+                </button>
+              </div>
+              <div class="upgrade">
+                <div class="upgrade-header">Fresh ice<span class="level" id="iceLevel"></span></div>
+                <p id="iceEffect"></p>
+                <button class="buy" data-buy="ice">
+                  <span>Upgrade</span><span id="iceCost"></span>
+                </button>
+              </div>
+              <div class="upgrade">
+                <div class="upgrade-header">
+                  Better boards<span class="level" id="boardsLevel"></span>
+                </div>
+                <p id="boardsEffect"></p>
+                <button class="buy" data-buy="boards">
+                  <span>Upgrade</span><span id="boardsCost"></span>
+                </button>
+              </div>
+              <div class="upgrade">
+                <div class="upgrade-header">
+                  Scoring streak<span class="level" id="streakLevel"></span>
+                </div>
+                <p id="streakEffect"></p>
+                <button class="buy" data-buy="streak">
+                  <span>Upgrade</span><span id="streakCost"></span>
+                </button>
+              </div>
+              <div class="upgrade">
+                <div class="upgrade-header">
+                  Scoring time<span class="level" id="timeLevel"></span>
+                </div>
+                <p id="timeEffect"></p>
+                <button class="buy" data-buy="time">
+                  <span>Upgrade</span><span id="timeCost"></span>
+                </button>
+              </div>
+              <div class="upgrade">
+                <div class="upgrade-header">
+                  Bank-shot bonus<span class="level" id="bankLevel"></span>
+                </div>
+                <p id="bankEffect"></p>
+                <button class="buy" data-buy="bank">
+                  <span>Upgrade</span><span id="bankCost"></span>
+                </button>
+              </div>
+            </div>
+            <div
+              class="upgrade-list"
+              role="tabpanel"
+              id="panel-equipment"
+              aria-labelledby="tab-equipment"
+              hidden
             >
-              Rink Upgrades</button
-            ><button
-              class="upgrade-tab"
-              id="tab-equipment"
-              role="tab"
-              aria-controls="panel-equipment"
-              aria-selected="false"
-              tabindex="-1"
-              data-tab="equipment"
+              <div class="upgrade">
+                <div class="upgrade-header">
+                  Longer blade<span class="level" id="bladeLevel"></span>
+                </div>
+                <p id="bladeEffect"></p>
+                <button class="buy" data-buy="blade">
+                  <span>Upgrade</span><span id="bladeCost"></span>
+                </button>
+              </div>
+              <div class="upgrade">
+                <div class="upgrade-header">
+                  Wider goal<span class="level" id="widthLevel"></span>
+                </div>
+                <p id="widthEffect"></p>
+                <button class="buy" data-buy="width">
+                  <span>Upgrade</span><span id="widthCost"></span>
+                </button>
+              </div>
+              <div class="upgrade">
+                <div class="upgrade-header">
+                  Puck return<span class="level" id="returnLevel"></span>
+                </div>
+                <p id="returnEffect"></p>
+                <button class="buy" data-buy="return">
+                  <span>Upgrade</span><span id="returnCost"></span>
+                </button>
+              </div>
+              <div class="upgrade">
+                <div class="upgrade-header">
+                  Golden pucks<span class="level" id="goldLevel"></span>
+                </div>
+                <p id="goldEffect"></p>
+                <button class="buy" data-buy="gold">
+                  <span>Upgrade</span><span id="goldCost"></span>
+                </button>
+              </div>
+              <div class="upgrade">
+                <div class="upgrade-header">
+                  More pucks<span class="level" id="pucksLevel"></span>
+                </div>
+                <p id="pucksEffect"></p>
+                <button class="buy" data-buy="pucks">
+                  <span>Upgrade</span><span id="pucksCost"></span>
+                </button>
+              </div>
+            </div>
+            <div
+              class="upgrade-list"
+              role="tabpanel"
+              id="panel-hiring"
+              aria-labelledby="tab-hiring"
+              hidden
             >
-              Equipment Room</button
-            ><button
-              class="upgrade-tab"
-              id="tab-hiring"
-              role="tab"
-              aria-controls="panel-hiring"
-              aria-selected="false"
-              tabindex="-1"
-              data-tab="hiring"
+              <div class="upgrade">
+                <div class="upgrade-header">
+                  <span id="autoName">Practice dummies</span
+                  ><span class="level" id="autoLevel"></span>
+                </div>
+                <p id="autoEffect"></p>
+                <button class="buy" data-buy="auto">
+                  <span>Hire</span><span id="autoCost"></span>
+                </button>
+              </div>
+              <div class="upgrade">
+                <div class="upgrade-header">
+                  <span id="fireRateName">Dummy shooting time</span
+                  ><span class="level" id="rateLevel"></span>
+                </div>
+                <p id="rateEffect"></p>
+                <button class="buy" data-buy="rate">
+                  <span>Upgrade</span><span id="rateCost"></span>
+                </button>
+              </div>
+              <div class="upgrade" data-trained-only hidden>
+                <div class="upgrade-header">
+                  Shooters<span class="level" id="trainedLevel"></span>
+                </div>
+                <p id="trainedEffect"></p>
+                <button class="buy" data-buy="trained">
+                  <span>Hire</span><span id="trainedCost"></span>
+                </button>
+              </div>
+              <div class="upgrade" data-trained-only hidden>
+                <div class="upgrade-header">
+                  Shooter training<span class="level" id="trainedRateLevel"></span>
+                </div>
+                <p id="trainedRateEffect"></p>
+                <button class="buy" data-buy="trainedRate">
+                  <span>Upgrade</span><span id="trainedRateCost"></span>
+                </button>
+              </div>
+              <div class="upgrade" data-trained-only hidden>
+                <div class="upgrade-header">
+                  Shooter accuracy<span class="level" id="accuracyLevel"></span>
+                </div>
+                <p id="accuracyEffect"></p>
+                <button class="buy" data-buy="accuracy">
+                  <span>Upgrade</span><span id="accuracyCost"></span>
+                </button>
+              </div>
+              <div class="upgrade" data-trained-only hidden>
+                <div class="upgrade-header">
+                  Shooter multishot<span class="level" id="multiLevel"></span>
+                </div>
+                <p id="multiEffect"></p>
+                <button class="buy" data-buy="multi">
+                  <span>Upgrade</span><span id="multiCost"></span>
+                </button>
+              </div>
+              <div class="upgrade" data-zamboni-only hidden>
+                <div class="upgrade-header">
+                  Zamboni coverage<span class="level" id="zamboniWidthLevel"></span>
+                </div>
+                <p id="zamboniWidthEffect"></p>
+                <button class="buy" data-buy="zamboniWidth">
+                  <span>Upgrade</span><span id="zamboniWidthCost"></span>
+                </button>
+              </div>
+              <div class="upgrade" data-zamboni-only hidden>
+                <div class="upgrade-header">
+                  Zamboni speed<span class="level" id="zamboniSpeedLevel"></span>
+                </div>
+                <p id="zamboniSpeedEffect"></p>
+                <button class="buy" data-buy="zamboniSpeed">
+                  <span>Upgrade</span><span id="zamboniSpeedCost"></span>
+                </button>
+              </div>
+            </div>
+          </div>
+          <section id="franchise-page" role="tabpanel" aria-labelledby="layer-franchise" hidden>
+            <div class="sale-panel">
+              <div class="sale-heading">
+                Sell the Rink <strong id="saleReward">0 Capital</strong>
+              </div>
+              <p id="saleProgress"></p>
+              <button id="sellRink" class="franchise-button">Sell the Rink</button>
+            </div>
+            <div
+              class="upgrade-tabs franchise-tabs"
+              role="tablist"
+              aria-label="Franchise categories"
             >
-              Hiring Roster
-            </button>
-          </div>
-          <div class="upgrade-list" role="tabpanel" id="panel-rink" aria-labelledby="tab-rink">
-            <div class="upgrade">
-              <div class="upgrade-header">
-                Goal bonus<span class="level" id="bonusLevel"></span>
+              <button
+                class="upgrade-tab"
+                id="tab-franchise-upgrades"
+                role="tab"
+                aria-controls="panel-franchise-upgrades"
+                aria-selected="true"
+                tabindex="0"
+                data-franchise-tab="upgrades"
+              >
+                Franchise Upgrades
+              </button>
+              <button
+                class="upgrade-tab"
+                id="tab-franchise-scouting"
+                role="tab"
+                aria-controls="panel-franchise-scouting"
+                aria-selected="false"
+                tabindex="-1"
+                data-franchise-tab="scouting"
+              >
+                Scouting Department
+              </button>
+            </div>
+            <div
+              class="upgrade-list"
+              id="panel-franchise-upgrades"
+              role="tabpanel"
+              aria-labelledby="tab-franchise-upgrades"
+            >
+              <div class="upgrade">
+                <div class="upgrade-header">
+                  Ticket Sales<span class="level" id="franchise-ticketsLevel"></span>
+                </div>
+                <p id="franchise-ticketsEffect"></p>
+                <button class="buy franchise-button" data-franchise-buy="tickets">
+                  <span id="franchise-ticketsAction">Upgrade</span
+                  ><span id="franchise-ticketsCost"></span>
+                </button>
               </div>
-              <p id="bonusEffect"></p>
-              <button class="buy" data-buy="bonus">
-                <span>Upgrade</span><span id="bonusCost"></span>
-              </button>
-            </div>
-            <div class="upgrade">
-              <div class="upgrade-header">Fresh ice<span class="level" id="iceLevel"></span></div>
-              <p id="iceEffect"></p>
-              <button class="buy" data-buy="ice">
-                <span>Upgrade</span><span id="iceCost"></span>
-              </button>
-            </div>
-            <div class="upgrade">
-              <div class="upgrade-header">
-                Better boards<span class="level" id="boardsLevel"></span>
+              <div class="upgrade">
+                <div class="upgrade-header">
+                  Equipment Budget<span class="level" id="franchise-equipmentLevel"></span>
+                </div>
+                <p id="franchise-equipmentEffect"></p>
+                <button class="buy franchise-button" data-franchise-buy="equipment">
+                  <span id="franchise-equipmentAction">Upgrade</span
+                  ><span id="franchise-equipmentCost"></span>
+                </button>
               </div>
-              <p id="boardsEffect"></p>
-              <button class="buy" data-buy="boards">
-                <span>Upgrade</span><span id="boardsCost"></span>
-              </button>
-            </div>
-            <div class="upgrade">
-              <div class="upgrade-header">
-                Scoring streak<span class="level" id="streakLevel"></span>
+              <div class="upgrade">
+                <div class="upgrade-header">
+                  Second Net<span class="level" id="franchise-secondNetLevel"></span>
+                </div>
+                <p id="franchise-secondNetEffect"></p>
+                <button class="buy franchise-button" data-franchise-buy="secondNet">
+                  <span id="franchise-secondNetAction">Upgrade</span
+                  ><span id="franchise-secondNetCost"></span>
+                </button>
               </div>
-              <p id="streakEffect"></p>
-              <button class="buy" data-buy="streak">
-                <span>Upgrade</span><span id="streakCost"></span>
-              </button>
             </div>
-            <div class="upgrade">
-              <div class="upgrade-header">
-                Scoring time<span class="level" id="timeLevel"></span>
+            <div
+              class="upgrade-list"
+              id="panel-franchise-scouting"
+              role="tabpanel"
+              aria-labelledby="tab-franchise-scouting"
+              hidden
+            >
+              <div class="upgrade">
+                <div class="upgrade-header">
+                  Shooters<span class="level" id="franchise-shootersLevel"></span>
+                </div>
+                <p id="franchise-shootersEffect"></p>
+                <button class="buy franchise-button" data-franchise-buy="shooters">
+                  <span id="franchise-shootersAction">Upgrade</span
+                  ><span id="franchise-shootersCost"></span>
+                </button>
               </div>
-              <p id="timeEffect"></p>
-              <button class="buy" data-buy="time">
-                <span>Upgrade</span><span id="timeCost"></span>
-              </button>
-            </div>
-            <div class="upgrade">
-              <div class="upgrade-header">
-                Bank-shot bonus<span class="level" id="bankLevel"></span>
+              <div class="upgrade">
+                <div class="upgrade-header">
+                  Zamboni<span class="level" id="franchise-zamboniLevel"></span>
+                </div>
+                <p id="franchise-zamboniEffect"></p>
+                <button class="buy franchise-button" data-franchise-buy="zamboni">
+                  <span id="franchise-zamboniAction">Upgrade</span
+                  ><span id="franchise-zamboniCost"></span>
+                </button>
               </div>
-              <p id="bankEffect"></p>
-              <button class="buy" data-buy="bank">
-                <span>Upgrade</span><span id="bankCost"></span>
-              </button>
             </div>
-          </div>
-          <div
-            class="upgrade-list"
-            role="tabpanel"
-            id="panel-equipment"
-            aria-labelledby="tab-equipment"
-            hidden
-          >
-            <div class="upgrade">
-              <div class="upgrade-header">
-                Longer blade<span class="level" id="bladeLevel"></span>
-              </div>
-              <p id="bladeEffect"></p>
-              <button class="buy" data-buy="blade">
-                <span>Upgrade</span><span id="bladeCost"></span>
-              </button>
-            </div>
-            <div class="upgrade">
-              <div class="upgrade-header">
-                Wider goal<span class="level" id="widthLevel"></span>
-              </div>
-              <p id="widthEffect"></p>
-              <button class="buy" data-buy="width">
-                <span>Upgrade</span><span id="widthCost"></span>
-              </button>
-            </div>
-            <div class="upgrade">
-              <div class="upgrade-header">
-                Puck return<span class="level" id="returnLevel"></span>
-              </div>
-              <p id="returnEffect"></p>
-              <button class="buy" data-buy="return">
-                <span>Upgrade</span><span id="returnCost"></span>
-              </button>
-            </div>
-            <div class="upgrade">
-              <div class="upgrade-header">
-                Golden pucks<span class="level" id="goldLevel"></span>
-              </div>
-              <p id="goldEffect"></p>
-              <button class="buy" data-buy="gold">
-                <span>Upgrade</span><span id="goldCost"></span>
-              </button>
-            </div>
-            <div class="upgrade">
-              <div class="upgrade-header">
-                More pucks<span class="level" id="pucksLevel"></span>
-              </div>
-              <p id="pucksEffect"></p>
-              <button class="buy" data-buy="pucks">
-                <span>Upgrade</span><span id="pucksCost"></span>
-              </button>
-            </div>
-          </div>
-          <div
-            class="upgrade-list"
-            role="tabpanel"
-            id="panel-hiring"
-            aria-labelledby="tab-hiring"
-            hidden
-          >
-            <div class="upgrade">
-              <div class="upgrade-header">
-                Additional shooters<span class="level" id="autoLevel"></span>
-              </div>
-              <p id="autoEffect"></p>
-              <button class="buy" data-buy="auto">
-                <span>Hire</span><span id="autoCost"></span>
-              </button>
-            </div>
-            <div class="upgrade">
-              <div class="upgrade-header">
-                Shooter accuracy<span class="level" id="accuracyLevel"></span>
-              </div>
-              <p id="accuracyEffect"></p>
-              <button class="buy" data-buy="accuracy">
-                <span>Upgrade</span><span id="accuracyCost"></span>
-              </button>
-            </div>
-            <div class="upgrade">
-              <div class="upgrade-header">
-                Shooter multishot<span class="level" id="multiLevel"></span>
-              </div>
-              <p id="multiEffect"></p>
-              <button class="buy" data-buy="multi">
-                <span>Upgrade</span><span id="multiCost"></span>
-              </button>
-            </div>
-          </div>
+          </section>
         </aside>
       </div>
-      <section
-        id="franchise-page"
-        role="tabpanel"
-        aria-labelledby="layer-franchise"
-        hidden
-      ></section>
+      <dialog id="saleDialog">
+        <h2>Sell the Rink?</h2>
+        <p id="saleConfirmation"></p>
+        <p>Points and rink upgrades reset. Capital and all Franchise purchases stay.</p>
+        <div class="dialog-actions">
+          <button id="cancelSale" class="secondary">Cancel</button
+          ><button id="confirmSale" class="franchise-button">Sell and restart</button>
+        </div>
+      </dialog>
     </main>
     <script>
       "use strict";
@@ -533,21 +787,26 @@
       };
 
       const upgradeLimits = {
-        bonus: 100,
-        power: 100,
-        auto: 20,
-        pucks: 19,
+        bonus: 20,
+        power: 20,
+        auto: 10,
+        pucks: 9,
         ice: 12,
         boards: 10,
-        streak: 20,
-        time: 12,
-        bank: 20,
-        blade: 12,
-        width: 12,
+        streak: 10,
+        time: 10,
+        bank: 10,
+        blade: 10,
+        width: 10,
         return: 10,
         gold: 20,
         accuracy: 10,
-        multi: 4,
+        multi: 3,
+        rate: 12,
+        trained: 10,
+        trainedRate: 12,
+        zamboniWidth: 4,
+        zamboniSpeed: 5,
       };
 
       const defaultState = {
@@ -568,24 +827,103 @@
         gold: 0,
         accuracy: 0,
         multi: 0,
+        rate: 0,
+        trained: 0,
+        trainedRate: 0,
+        zamboniWidth: 0,
+        zamboniSpeed: 0,
+        franchiseUnlocked: 0,
+        runEarned: 0,
+        lifetimeEarned: 0,
+        saveVersion: 3,
+        franchise: {
+          capital: 0,
+          sales: 0,
+          tickets: 0,
+          equipment: 0,
+          secondNet: 0,
+          shooters: 0,
+          zamboni: 0,
+        },
       };
 
       let state = {
         ...defaultState,
+        franchise: { ...defaultState.franchise },
       };
       let canSaveProgress = true;
+
+      const franchiseLimits = { tickets: 8, equipment: 5, secondNet: 1, shooters: 1, zamboni: 1 };
+      const PRESTIGE_THRESHOLD = 100000;
+
+      function getHistoricalSpending(savedState) {
+        const costs = {
+          bonus: 30,
+          power: 40,
+          auto: 60,
+          pucks: 50,
+          ice: 45,
+          boards: 55,
+          streak: 75,
+          time: 60,
+          bank: 70,
+          blade: 45,
+          width: 90,
+          return: 50,
+          gold: 120,
+          accuracy: 65,
+          multi: 140,
+          rate: 65,
+        };
+        let total = 0;
+        for (const [key, baseCost] of Object.entries(costs)) {
+          const levels = Number.isSafeInteger(savedState[key])
+            ? Math.min(100, Math.max(0, savedState[key]))
+            : 0;
+          for (let level = 0; level < levels; level++)
+            total += Math.ceil(baseCost * Math.pow(key === "auto" ? 1.85 : 1.7, level));
+        }
+        return Math.min(1e12, total);
+      }
 
       function loadSavedState() {
         try {
           const savedState = JSON.parse(localStorage.getItem("icetime-v1"));
-          if (savedState && typeof savedState === "object") {
-            for (const key in defaultState) {
-              if (Number.isSafeInteger(savedState[key]) && savedState[key] >= 0) {
-                state[key] = Math.min(
-                  savedState[key],
-                  key === "points" || key === "goals" ? 1e12 : upgradeLimits[key],
-                );
-              }
+          if (!savedState || typeof savedState !== "object") return;
+          for (const key of [
+            "points",
+            "goals",
+            "runEarned",
+            "lifetimeEarned",
+            "franchiseUnlocked",
+            ...Object.keys(upgradeLimits),
+          ]) {
+            if (Number.isSafeInteger(savedState[key]) && savedState[key] >= 0) {
+              state[key] = Math.min(
+                savedState[key],
+                key === "franchiseUnlocked" ? 1 : (upgradeLimits[key] ?? 1e12),
+              );
+            }
+          }
+          if (savedState.franchise && typeof savedState.franchise === "object") {
+            for (const key in defaultState.franchise) {
+              const value = savedState.franchise[key];
+              if (Number.isSafeInteger(value) && value >= 0)
+                state.franchise[key] = Math.min(value, franchiseLimits[key] ?? 1e12);
+            }
+          }
+          if (!Number.isSafeInteger(savedState.runEarned)) {
+            state.runEarned = Math.min(1e12, state.points + getHistoricalSpending(savedState));
+            state.lifetimeEarned = state.runEarned;
+          }
+          if (![2, 3].includes(savedState.saveVersion)) {
+            for (const key of ["accuracy", "multi"]) {
+              const levels = Number.isSafeInteger(savedState[key])
+                ? Math.min(100, Math.max(0, savedState[key]))
+                : 0;
+              for (let level = 0; level < levels; level++)
+                state.points += Math.ceil((key === "accuracy" ? 65 : 140) * Math.pow(1.7, level));
+              state[key] = 0;
             }
           }
         } catch (error) {
@@ -608,7 +946,7 @@
       }
       let pucks = Array.from(
         {
-          length: state.pucks + 1,
+          length: getPuckCount(),
         },
         (_, index) => createPuck(index),
       );
@@ -622,9 +960,12 @@
         isActive: false,
         isPressed: false,
       };
-      let timeSinceAutoShot = 0;
+      let practiceDummies = [];
+      let trainedShooters = [];
+      let zamboni = createZamboni();
       let nextAutoPuckIndex = 0;
       let particles = [];
+      let shotAnimations = [];
       let goalToastTimeLeft = 0;
       let physicsAccumulator = 0;
       let previousFrameTime = 0;
@@ -636,7 +977,26 @@
       let remainingStickSteps = 1;
       const formatNumber = (number) => Math.floor(number).toLocaleString();
       const getGoalValue = (level = state.bonus) => Math.round(10 * Math.pow(1.5, level));
-      const getShooterInterval = () => 8;
+      function getStartingPucks() {
+        return Math.min(10, 1 + state.franchise.equipment * 2);
+      }
+      function getPuckCount() {
+        return Math.min(10, getStartingPucks() + state.pucks);
+      }
+      function getTicketMultiplier() {
+        return 1 + state.franchise.tickets * 0.5;
+      }
+      function getShooterInterval(level = state.rate) {
+        return Math.max(2, 10 * Math.pow(0.9, level));
+      }
+      function getTrainedShooterInterval(level = state.trainedRate) {
+        return Math.max(2, 8 * Math.pow(0.9, level));
+      }
+
+      function getRandomShotDelay(isTrained = false) {
+        const interval = isTrained ? getTrainedShooterInterval() : getShooterInterval();
+        return interval * (0.6 + Math.random() * 0.8);
+      }
       const getBladeHalfLength = () => 28 + state.blade * 4;
       const getGoalHeight = () => 166 + state.width * 12;
       const getPuckReturnDelay = () => 0.8 * Math.pow(0.84, state.return);
@@ -686,11 +1046,49 @@
         },
         pucks: {
           base: 50,
-          effect: (level) => level + 1 + " pucks on the ice",
+          effect: (level) =>
+            Math.min(10, getStartingPucks() + level) + " pucks on the ice (cap 10)",
         },
         auto: {
           base: 60,
-          effect: (level) => level + " shooters · each fires every 8s",
+          effect: (level) => level + " practice dummies firing in random directions (cap 10)",
+        },
+        rate: {
+          base: 65,
+          effect: (level) =>
+            (getShooterInterval(level) * 0.6).toFixed(1) +
+            "–" +
+            (getShooterInterval(level) * 1.4).toFixed(1) +
+            "s between each worker's shots",
+        },
+        trained: {
+          base: 160,
+          effect: (level) => level + " aimed shooters working alongside your dummies (cap 10)",
+        },
+        trainedRate: {
+          base: 90,
+          effect: (level) =>
+            (getTrainedShooterInterval(level) * 0.6).toFixed(1) +
+            "–" +
+            (getTrainedShooterInterval(level) * 1.4).toFixed(1) +
+            "s between each shooter's shots",
+        },
+        zamboniWidth: {
+          base: 180,
+          effect: (level) =>
+            "Cleans " +
+            (level === 4 ? "the entire rink" : "1/" + (5 - level) + " of the rink") +
+            " in one pass",
+        },
+        zamboniSpeed: {
+          base: 140,
+          effect: (level) =>
+            (1 + level * 0.2).toFixed(1) +
+            "× speed · " +
+            getZamboniPassDuration(level).toFixed(1) +
+            "s drive / " +
+            getZamboniCycleDuration(level).toFixed(1) +
+            "s cycle",
         },
         accuracy: {
           base: 65,
@@ -716,11 +1114,36 @@
       }
 
       function updateUI() {
+        if (
+          state.runEarned >= PRESTIGE_THRESHOLD ||
+          state.lifetimeEarned >= PRESTIGE_THRESHOLD ||
+          Object.values(state.franchise).some((value) => value > 0)
+        ) {
+          state.franchiseUnlocked = 1;
+        }
+        getElement("layer-franchise").hidden = !state.franchiseUnlocked;
+        getElement("capitalCounter").hidden = !state.franchiseUnlocked;
         getElement("points").textContent = formatNumber(state.points);
+        getElement("capital").textContent = formatNumber(state.franchise.capital);
+        getElement("autoName").textContent = "Practice dummies";
+        getElement("fireRateName").textContent = "Dummy shooting time";
+        document
+          .querySelectorAll("[data-trained-only]")
+          .forEach((row) => (row.hidden = !state.franchise.shooters));
+        document
+          .querySelectorAll("[data-zamboni-only]")
+          .forEach((row) => (row.hidden = !state.franchise.zamboni));
         for (const [upgradeKey, upgradeDefinition] of Object.entries(upgradeDefinitions)) {
           const level = state[upgradeKey];
-          const isMaxLevel = level >= upgradeLimits[upgradeKey];
-          getElement(upgradeKey + "Level").textContent = "LV " + level;
+          const isLocked =
+            ["trained", "trainedRate", "accuracy", "multi"].includes(upgradeKey) &&
+            !state.franchise.shooters;
+          const isZamboniLocked =
+            ["zamboniWidth", "zamboniSpeed"].includes(upgradeKey) && !state.franchise.zamboni;
+          const isMaxLevel =
+            level >= upgradeLimits[upgradeKey] || (upgradeKey === "pucks" && getPuckCount() >= 10);
+          getElement(upgradeKey + "Level").textContent =
+            "LV " + level + "/" + upgradeLimits[upgradeKey];
           getElement(upgradeKey + "Cost").textContent = isMaxLevel
             ? "MAX"
             : formatNumber(getUpgradeCost(upgradeKey)) + " pts";
@@ -728,10 +1151,10 @@
             upgradeDefinition.effect(level) +
             (isMaxLevel ? "" : " → " + upgradeDefinition.effect(level + 1));
           document.querySelector('[data-buy="' + upgradeKey + '"]').disabled =
-            isMaxLevel || state.points < getUpgradeCost(upgradeKey);
+            isLocked || isZamboniLocked || isMaxLevel || state.points < getUpgradeCost(upgradeKey);
         }
+        updateFranchiseUI();
       }
-
       function selectUpgradeTab(key) {
         document.querySelectorAll("[data-tab]").forEach((button) => {
           const active = button.dataset.tab === key;
@@ -766,60 +1189,123 @@
         });
       }
 
-      function bindUpgradeButtons() {
-        document.querySelectorAll("[data-buy]").forEach(
-          (button) =>
-            (button.onclick = () => {
-              const upgradeKey = button.dataset.buy;
-              const purchaseCost = getUpgradeCost(upgradeKey);
-              if (state.points < purchaseCost || state[upgradeKey] >= upgradeLimits[upgradeKey]) {
-                return;
-              }
-              state.points -= purchaseCost;
-              state[upgradeKey]++;
-              if (upgradeKey === "pucks") {
-                pucks.push(createPuck(pucks.length));
-              }
-              goal.top = 325 - getGoalHeight() / 2;
-              goal.bottom = 325 + getGoalHeight() / 2;
-              updateUI();
-              save();
-            }),
-        );
+      function buyRinkUpgrade(upgradeKey) {
+        const purchaseCost = getUpgradeCost(upgradeKey);
+        if (state.points < purchaseCost || state[upgradeKey] >= upgradeLimits[upgradeKey]) return;
+        if (upgradeKey === "pucks" && getPuckCount() >= 10) return;
+        if (
+          ["trained", "trainedRate", "accuracy", "multi"].includes(upgradeKey) &&
+          !state.franchise.shooters
+        )
+          return;
+        if (["zamboniWidth", "zamboniSpeed"].includes(upgradeKey) && !state.franchise.zamboni)
+          return;
+        const oldZamboniCycle = getZamboniCycleDuration();
+        const oldInterval = getShooterInterval();
+        const oldTrainedInterval = getTrainedShooterInterval();
+        state.points -= purchaseCost;
+        state[upgradeKey]++;
+        if (upgradeKey === "pucks") syncPuckCount();
+        if (upgradeKey === "auto") syncPracticeDummies();
+        if (upgradeKey === "trained") syncTrainedShooters();
+        if (upgradeKey === "trainedRate")
+          trainedShooters.forEach(
+            (shooter) => (shooter.shotTimeLeft *= getTrainedShooterInterval() / oldTrainedInterval),
+          );
+        if (upgradeKey === "rate")
+          practiceDummies.forEach(
+            (dummy) => (dummy.shotTimeLeft *= getShooterInterval() / oldInterval),
+          );
+        if (upgradeKey === "zamboniSpeed") {
+          const progress = zamboni.passTime / zamboni.passDuration;
+          zamboni.passDuration = getZamboniPassDuration();
+          zamboni.passTime = progress * zamboni.passDuration;
+          zamboni.nextPassIn *= getZamboniCycleDuration() / oldZamboniCycle;
+        }
+        updateGoalSize();
+        updateUI();
+        save();
       }
 
-      function fireAutomaticShot() {
-        const availablePucks = pucks.filter((trailPoint) => !trailPoint.respawnTimeLeft);
-        if (!availablePucks.length) {
-          return;
-        }
-        const shotCount = Math.min(availablePucks.length, 1 + state.multi);
+      function bindUpgradeButtons() {
+        document
+          .querySelectorAll("[data-buy]")
+          .forEach((button) => (button.onclick = () => buyRinkUpgrade(button.dataset.buy)));
+      }
+
+      function syncPuckCount() {
+        while (pucks.length < getPuckCount()) pucks.push(createPuck(pucks.length));
+        pucks.length = getPuckCount();
+      }
+
+      function syncPracticeDummies() {
+        while (practiceDummies.length < state.auto)
+          practiceDummies.push({ shotTimeLeft: getRandomShotDelay() });
+        practiceDummies.length = state.auto;
+      }
+
+      function syncTrainedShooters() {
+        const count = state.franchise.shooters ? state.trained : 0;
+        while (trainedShooters.length < count)
+          trainedShooters.push({ shotTimeLeft: getRandomShotDelay(true) });
+        trainedShooters.length = count;
+      }
+
+      function fireAutomaticShot(isTrained = false) {
+        const availablePucks = pucks.filter((puck) => !puck.respawnTimeLeft);
+        if (!availablePucks.length) return;
+        const shotCount = Math.min(availablePucks.length, isTrained ? 1 + state.multi : 1);
         for (let index = 0; index < shotCount; index++) {
           const puck = availablePucks[(nextAutoPuckIndex + index) % availablePucks.length];
-          const aimSpread = 180 * Math.pow(0.76, state.accuracy);
-          const targetY = 325 + (Math.random() * 2 - 1) * aimSpread;
-          const distanceX = 990 - puck.x;
-          const distanceY = targetY - puck.y;
-          const distance = Math.hypot(distanceX, distanceY) || 1;
-          puck.velocityX = (distanceX / distance) * 1050;
-          puck.velocityY = (distanceY / distance) * 1050;
+          if (isTrained) {
+            const shootLeft = state.franchise.secondNet && puck.x < RINK_WIDTH / 2;
+            const targetX = shootLeft ? 10 : 990;
+            const aimSpread = 180 * Math.pow(0.76, state.accuracy);
+            const targetY = 325 + (Math.random() * 2 - 1) * aimSpread;
+            const distanceX = targetX - puck.x;
+            const distanceY = targetY - puck.y;
+            const distance = Math.hypot(distanceX, distanceY) || 1;
+            puck.velocityX = (distanceX / distance) * 1050;
+            puck.velocityY = (distanceY / distance) * 1050;
+          } else {
+            const angle = Math.random() * Math.PI * 2;
+            puck.velocityX = Math.cos(angle) * 1050;
+            puck.velocityY = Math.sin(angle) * 1050;
+          }
           puck.hasBanked = false;
+          shotAnimations.push({
+            x: puck.x,
+            y: puck.y,
+            angle: Math.atan2(puck.velocityY, puck.velocityX),
+            age: 0,
+            duration: 0.28,
+            isTrained,
+          });
         }
+        if (shotAnimations.length > 40) shotAnimations.splice(0, shotAnimations.length - 40);
         nextAutoPuckIndex = (nextAutoPuckIndex + shotCount) % availablePucks.length;
       }
 
+      function updateGoalSize() {
+        goal.top = 325 - getGoalHeight() / 2;
+        goal.bottom = 325 + getGoalHeight() / 2;
+      }
       function resetPucks() {
         pucks = Array.from(
           {
-            length: state.pucks + 1,
+            length: getPuckCount(),
           },
           (_, index) => createPuck(index),
         );
-        timeSinceAutoShot = 0;
+        shotAnimations = [];
+        practiceDummies = [];
+        trainedShooters = [];
+        syncPracticeDummies();
+        syncTrainedShooters();
         pointer.isActive = false;
       }
 
-      function scoreGoal(puck) {
+      function scoreGoal(puck, side = "right") {
         if (puck.respawnTimeLeft) {
           return;
         }
@@ -829,10 +1315,16 @@
         const streakMultiplier = 1 + scoringStreak * state.streak * 0.1;
         const bankMultiplier = puck.hasBanked ? 1 + state.bank * 0.25 : 1;
         const reward = Math.round(
-          getGoalValue() * streakMultiplier * bankMultiplier * (puck.isGolden ? 5 : 1),
+          getGoalValue() *
+            getTicketMultiplier() *
+            streakMultiplier *
+            bankMultiplier *
+            (puck.isGolden ? 5 : 1),
         );
         state.goals++;
         state.points += reward;
+        state.runEarned += reward;
+        state.lifetimeEarned += reward;
         puck.respawnTimeLeft = getPuckReturnDelay();
         puck.velocityX = 0;
         puck.velocityY = 0;
@@ -842,7 +1334,7 @@
         getElement("toast").classList.add("show");
         for (let index = 0; index < 14; index++) {
           particles.push({
-            x: 935,
+            x: side === "left" ? 65 : 935,
             y: puck.y,
             velocityX: -Math.random() * 350,
             velocityY: (Math.random() - 0.5) * 300,
@@ -854,21 +1346,26 @@
       }
 
       function selectLayer(layer) {
+        if (layer === "franchise" && !state.franchiseUnlocked) return;
         activeLayer = layer;
         pointer.isActive = false;
         document.querySelectorAll("[data-layer]").forEach((button) => {
           const isSelected = button.dataset.layer === layer;
           button.setAttribute("aria-selected", String(isSelected));
           button.tabIndex = isSelected ? 0 : -1;
-          getElement(button.dataset.layer + "-page").hidden = !isSelected;
+          getElement(button.dataset.layer === "rink" ? "rink-upgrades" : "franchise-page").hidden =
+            !isSelected;
         });
       }
 
       function bindLayerTabs() {
-        const tabs = [...document.querySelectorAll("[data-layer]")];
-        tabs.forEach((button, index) => {
+        document.querySelectorAll("[data-layer]").forEach((button) => {
           button.onclick = () => selectLayer(button.dataset.layer);
           button.onkeydown = (event) => {
+            const tabs = [...document.querySelectorAll("[data-layer]")].filter(
+              (tab) => !tab.hidden,
+            );
+            const index = tabs.indexOf(button);
             let nextIndex;
             if (event.key === "ArrowRight") nextIndex = (index + 1) % tabs.length;
             else if (event.key === "ArrowLeft") nextIndex = (index + tabs.length - 1) % tabs.length;
@@ -885,7 +1382,6 @@
       function updatePointerPosition(event) {
         const boundsRect = canvas.getBoundingClientRect();
         const isInsideRink =
-          activeLayer === "rink" &&
           boundsRect.width > 0 &&
           boundsRect.height > 0 &&
           event.clientX >= boundsRect.left &&
@@ -941,6 +1437,7 @@
         elapsedGameTime += deltaTime;
         updateGoalEffects(deltaTime);
         updateAutoShooters(deltaTime);
+        updateZamboni(deltaTime);
         const previousStickPosition = {
           x: stick.x,
           y: stick.y,
@@ -968,6 +1465,8 @@
       }
 
       function updateGoalEffects(deltaTime) {
+        for (const animation of shotAnimations) animation.age += deltaTime;
+        shotAnimations = shotAnimations.filter((animation) => animation.age < animation.duration);
         goalToastTimeLeft -= deltaTime;
         if (goalToastTimeLeft <= 0) {
           getElement("toast").classList.remove("show");
@@ -981,12 +1480,16 @@
       }
 
       function updateAutoShooters(deltaTime) {
-        if (state.auto) {
-          timeSinceAutoShot += deltaTime;
-          const cadence = getShooterInterval() / state.auto;
-          while (timeSinceAutoShot >= cadence) {
-            timeSinceAutoShot -= cadence;
-            fireAutomaticShot();
+        updateWorkerTimers(practiceDummies, deltaTime, false);
+        updateWorkerTimers(trainedShooters, deltaTime, true);
+      }
+
+      function updateWorkerTimers(workers, deltaTime, isTrained) {
+        for (const worker of workers) {
+          worker.shotTimeLeft -= deltaTime;
+          if (worker.shotTimeLeft <= 0) {
+            fireAutomaticShot(isTrained);
+            worker.shotTimeLeft += getRandomShotDelay(isTrained);
           }
         }
       }
@@ -1056,7 +1559,9 @@
         }
         puck.x += puck.velocityX * deltaTime;
         puck.y += puck.velocityY * deltaTime;
-        const drag = Math.exp(-0.26 * Math.pow(0.85, state.ice) * deltaTime);
+        const drag = Math.exp(
+          -0.26 * Math.pow(0.85, state.ice) * getSurfaceFriction(puck) * deltaTime,
+        );
         puck.velocityX *= drag;
         puck.velocityY *= drag;
         if (puck.y < rinkBounds.top + PUCK_RADIUS) {
@@ -1069,40 +1574,53 @@
           puck.hasBanked = true;
           puck.velocityY = -Math.abs(puck.velocityY) * getBoardBounceFactor();
         }
-        if (puck.x < rinkBounds.left + PUCK_RADIUS) {
-          puck.x = rinkBounds.left + PUCK_RADIUS;
-          puck.hasBanked = true;
-          puck.velocityX = Math.abs(puck.velocityX) * getBoardBounceFactor();
-        }
-        if (puck.x > rinkBounds.right - PUCK_RADIUS) {
-          if (puck.y > goal.top + PUCK_RADIUS && puck.y < goal.bottom - PUCK_RADIUS) {
-            if (puck.x > rinkBounds.right + PUCK_RADIUS) {
-              scoreGoal(puck);
-              return true;
-            }
-          } else {
-            puck.x = rinkBounds.right - PUCK_RADIUS;
-            puck.hasBanked = true;
-            puck.velocityX = -Math.abs(puck.velocityX) * getBoardBounceFactor();
+        if (handleEndBoard(puck, "left")) return true;
+        if (handleEndBoard(puck, "right")) return true;
+        return false;
+      }
+
+      function handleEndBoard(puck, side) {
+        const isLeft = side === "left";
+        const boardX = isLeft ? rinkBounds.left : rinkBounds.right;
+        const isPastBoard = isLeft ? puck.x < boardX + PUCK_RADIUS : puck.x > boardX - PUCK_RADIUS;
+        if (!isPastBoard) return false;
+        const hasNet = !isLeft || state.franchise.secondNet;
+        const isInsideOpening =
+          puck.y > goal.top + PUCK_RADIUS && puck.y < goal.bottom - PUCK_RADIUS;
+        if (hasNet && isInsideOpening) {
+          const hasCrossedLine = isLeft
+            ? puck.x < boardX - PUCK_RADIUS
+            : puck.x > boardX + PUCK_RADIUS;
+          if (hasCrossedLine) {
+            scoreGoal(puck, side);
+            return true;
           }
+          return false;
         }
+        puck.x = isLeft ? boardX + PUCK_RADIUS : boardX - PUCK_RADIUS;
+        puck.velocityX = Math.abs(puck.velocityX) * getBoardBounceFactor() * (isLeft ? 1 : -1);
+        puck.hasBanked = true;
         return false;
       }
 
       function resolveGoalpostCollision(puck) {
-        for (const y of [goal.top, goal.bottom]) {
-          let distanceX = puck.x - 958;
-          let distanceY = puck.y - y;
-          let distance = Math.hypot(distanceX, distanceY);
-          if (distance < PUCK_RADIUS + 7 && distance > 0) {
-            let normalX = distanceX / distance;
-            let normalY = distanceY / distance;
-            puck.x = 958 + normalX * (PUCK_RADIUS + 7);
-            puck.y = y + normalY * (PUCK_RADIUS + 7);
-            let speedAlongNormal = puck.velocityX * normalX + puck.velocityY * normalY;
-            if (speedAlongNormal < 0) {
-              puck.velocityX -= 1.85 * speedAlongNormal * normalX;
-              puck.velocityY -= 1.85 * speedAlongNormal * normalY;
+        for (const postX of state.franchise.secondNet
+          ? [rinkBounds.left, rinkBounds.right]
+          : [rinkBounds.right]) {
+          for (const y of [goal.top, goal.bottom]) {
+            let distanceX = puck.x - postX;
+            let distanceY = puck.y - y;
+            let distance = Math.hypot(distanceX, distanceY);
+            if (distance < PUCK_RADIUS + 7 && distance > 0) {
+              let normalX = distanceX / distance;
+              let normalY = distanceY / distance;
+              puck.x = postX + normalX * (PUCK_RADIUS + 7);
+              puck.y = y + normalY * (PUCK_RADIUS + 7);
+              let speedAlongNormal = puck.velocityX * normalX + puck.velocityY * normalY;
+              if (speedAlongNormal < 0) {
+                puck.velocityX -= 1.85 * speedAlongNormal * normalX;
+                puck.velocityY -= 1.85 * speedAlongNormal * normalY;
+              }
             }
           }
         }
@@ -1160,13 +1678,22 @@
       }
 
       function renderGame() {
-        if (activeLayer !== "rink") return;
         drawRink();
+        drawResurfacedIce();
         drawGoal();
+        if (state.franchise.secondNet) {
+          drawingContext.save();
+          drawingContext.translate(RINK_WIDTH, 0);
+          drawingContext.scale(-1, 1);
+          drawGoal();
+          drawingContext.restore();
+        }
         drawPucks();
+        drawShotAnimations();
+        drawZamboni();
         drawStick();
         drawParticles();
-        drawAutoShooterMeter();
+
         drawStreakMeter();
       }
 
@@ -1209,6 +1736,7 @@
         drawingContext.roundRect(36, 36, 928, 578, 88);
         drawingContext.stroke();
         drawLine(958, goal.top, 958, goal.bottom, "#e4f1f3", 13);
+        if (state.franchise.secondNet) drawLine(42, goal.top, 42, goal.bottom, "#e4f1f3", 13);
       }
 
       function drawGoal() {
@@ -1272,7 +1800,7 @@
       }
 
       function drawStick() {
-        if (!pointer.isActive || activeLayer !== "rink") return;
+        if (!pointer.isActive) return;
         drawingContext.save();
         drawingContext.translate(pointer.x, pointer.y);
         drawingContext.lineCap = "round";
@@ -1305,20 +1833,6 @@
           drawingContext.fillRect(particle.x, particle.y, 5, 5);
         }
         drawingContext.globalAlpha = 1;
-      }
-
-      function drawAutoShooterMeter() {
-        if (state.auto) {
-          drawingContext.fillStyle = "#a9c7cd";
-          drawingContext.fillRect(75, 575, 130, 4);
-          drawingContext.fillStyle = "#4b8e82";
-          drawingContext.fillRect(
-            75,
-            575,
-            130 * Math.min(1, timeSinceAutoShot / (getShooterInterval() / state.auto)),
-            4,
-          );
-        }
       }
 
       function drawStreakMeter() {
@@ -1357,9 +1871,348 @@
         requestAnimationFrame(animateGame);
       }
 
+      const franchiseDefinitions = {
+        tickets: {
+          base: 1,
+          effect: (level) => (1 + level * 0.5).toFixed(1) + "× points from every goal (cap 5×)",
+        },
+        equipment: {
+          base: 1,
+          effect: (level) =>
+            Math.min(10, 1 + level * 2) + " starting pucks · +2 per level, up to 10",
+        },
+        secondNet: {
+          base: 3,
+          effect: () => "Adds a scoring net on the left side. Permanent unlock.",
+        },
+        shooters: {
+          base: 2,
+          effect: () =>
+            "Unlocks separate aimed shooters, training, accuracy and multishot in Hiring Roster. Your practice dummies stay.",
+        },
+        zamboni: {
+          base: 2,
+          effect: () =>
+            "Unlocks a Zamboni covering 1/5 of the rink per pass. Slick strips last 20s. Coverage and speed upgrades appear in Hiring Roster.",
+        },
+      };
+
+      function getFranchiseCost(key) {
+        return Math.ceil(franchiseDefinitions[key].base * Math.pow(1.8, state.franchise[key]));
+      }
+
+      function getSaleReward() {
+        if (state.runEarned < PRESTIGE_THRESHOLD) return 0;
+        return Math.floor(Math.log10(state.runEarned / PRESTIGE_THRESHOLD)) + 1;
+      }
+
+      function updateFranchiseUI() {
+        for (const [key, definition] of Object.entries(franchiseDefinitions)) {
+          const level = state.franchise[key];
+          const limit = franchiseLimits[key];
+          const isOwned = level >= limit;
+          const isSingleUnlock = limit === 1;
+          const price = getFranchiseCost(key);
+          getElement("franchise-" + key + "Level").textContent =
+            isOwned && isSingleUnlock ? "OWNED" : "LV " + level + "/" + limit;
+          getElement("franchise-" + key + "Effect").textContent =
+            definition.effect(level) +
+            (!isOwned && !isSingleUnlock ? " → " + definition.effect(level + 1) : "");
+          getElement("franchise-" + key + "Action").textContent = isSingleUnlock
+            ? "Unlock"
+            : "Upgrade";
+          getElement("franchise-" + key + "Cost").textContent = isOwned
+            ? "MAX"
+            : formatNumber(price) + " Capital";
+          document.querySelector('[data-franchise-buy="' + key + '"]').disabled =
+            isOwned || state.franchise.capital < price;
+        }
+        const reward = getSaleReward();
+        getElement("saleReward").textContent = formatNumber(reward) + " Capital";
+        const nextRewardTarget = PRESTIGE_THRESHOLD * Math.pow(10, reward);
+        getElement("saleProgress").textContent =
+          formatNumber(state.runEarned) +
+          " points earned this run. " +
+          formatNumber(Math.max(0, nextRewardTarget - state.runEarned)) +
+          " more for " +
+          formatNumber(reward + 1) +
+          " Capital. Spending points does not reduce the payout.";
+        getElement("sellRink").disabled = reward < 1;
+        getElement("saleConfirmation").textContent =
+          "Receive " +
+          formatNumber(reward) +
+          " Franchise Capital and restart with " +
+          getStartingPucks() +
+          " puck" +
+          (getStartingPucks() === 1 ? "." : "s.");
+      }
+
+      function buyFranchiseUpgrade(key) {
+        const price = getFranchiseCost(key);
+        if (state.franchise[key] >= franchiseLimits[key] || state.franchise.capital < price) return;
+        state.franchise.capital -= price;
+        state.franchise[key]++;
+        if (key === "equipment") syncPuckCount();
+        if (key === "shooters") syncTrainedShooters();
+        if (key === "zamboni") zamboni = createZamboni();
+        updateUI();
+        save();
+      }
+
+      function completeRinkSale() {
+        const reward = getSaleReward();
+        if (reward < 1) return;
+        const franchise = {
+          ...state.franchise,
+          capital: state.franchise.capital + reward,
+          sales: state.franchise.sales + 1,
+        };
+        state = {
+          ...defaultState,
+          goals: state.goals,
+          lifetimeEarned: state.lifetimeEarned,
+          franchiseUnlocked: 1,
+          franchise,
+        };
+        scoringStreak = 0;
+        lastGoalTime = -Infinity;
+        goalToastTimeLeft = 0;
+        nextAutoPuckIndex = 0;
+        particles = [];
+        zamboni = createZamboni();
+        getElement("toast").classList.remove("show");
+        updateGoalSize();
+        resetPucks();
+        getElement("saleDialog").close();
+        updateUI();
+        save();
+      }
+
+      function selectFranchiseTab(key) {
+        document.querySelectorAll("[data-franchise-tab]").forEach((button) => {
+          const isSelected = button.dataset.franchiseTab === key;
+          button.setAttribute("aria-selected", String(isSelected));
+          button.tabIndex = isSelected ? 0 : -1;
+          getElement("panel-franchise-" + button.dataset.franchiseTab).hidden = !isSelected;
+        });
+      }
+
+      function bindFranchiseControls() {
+        const tabs = [...document.querySelectorAll("[data-franchise-tab]")];
+        tabs.forEach((button, index) => {
+          button.onclick = () => selectFranchiseTab(button.dataset.franchiseTab);
+          button.onkeydown = (event) => {
+            let nextIndex;
+            if (event.key === "ArrowRight") nextIndex = (index + 1) % tabs.length;
+            else if (event.key === "ArrowLeft") nextIndex = (index + tabs.length - 1) % tabs.length;
+            else if (event.key === "Home") nextIndex = 0;
+            else if (event.key === "End") nextIndex = tabs.length - 1;
+            else return;
+            event.preventDefault();
+            selectFranchiseTab(tabs[nextIndex].dataset.franchiseTab);
+            tabs[nextIndex].focus();
+          };
+        });
+        document
+          .querySelectorAll("[data-franchise-buy]")
+          .forEach(
+            (button) => (button.onclick = () => buyFranchiseUpgrade(button.dataset.franchiseBuy)),
+          );
+        getElement("sellRink").onclick = () => {
+          if (getSaleReward() < 1) return;
+          updateFranchiseUI();
+          getElement("saleDialog").showModal();
+        };
+        getElement("cancelSale").onclick = () => getElement("saleDialog").close();
+        getElement("confirmSale").onclick = completeRinkSale;
+      }
+
+      function getZamboniPassDuration(level = state.zamboniSpeed) {
+        return 8 / (1 + level * 0.2);
+      }
+
+      function getZamboniCycleDuration(level = state.zamboniSpeed) {
+        return 30 / (1 + level * 0.2);
+      }
+
+      function drawShotAnimations() {
+        for (const animation of shotAnimations) {
+          const progress = animation.age / animation.duration;
+          const swingProgress = 1 - Math.pow(1 - progress, 3);
+          drawingContext.save();
+          drawingContext.translate(animation.x, animation.y);
+          drawingContext.rotate(animation.angle);
+          drawingContext.globalAlpha = Math.min(1, (1 - progress) / 0.35);
+          const bladeX = -25 + swingProgress * 42;
+          drawingContext.translate(bladeX, 0);
+          drawingContext.rotate(-0.45 + swingProgress * 0.75);
+          drawingContext.lineCap = "round";
+          drawLine(-3, -18, -42, -83, animation.isTrained ? "#496d91" : "#b98d58", 7);
+          drawLine(-31, -65, -42, -83, "#263b4c", 8);
+          drawingContext.fillStyle = animation.isTrained ? "#7143a6" : "#263b4c";
+          drawingContext.beginPath();
+          drawingContext.roundRect(-6, -23, 12, 46, 4);
+          drawingContext.fill();
+          for (let y = -12; y < 20; y += 7) drawLine(-6, y, 6, y - 3, "#e1e7e9", 2);
+          drawingContext.restore();
+        }
+      }
+
+      function createZamboni() {
+        return {
+          isDriving: false,
+          x: -80,
+          y: 130,
+          direction: 1,
+          passTime: 0,
+          passDuration: getZamboniPassDuration(),
+          nextPassIn: 0,
+          laneIndex: 0,
+          currentLane: null,
+          lanes: [],
+        };
+      }
+
+      function startZamboniPass() {
+        zamboni.isDriving = true;
+        zamboni.passTime = 0;
+        zamboni.direction = zamboni.laneIndex % 2 === 0 ? 1 : -1;
+        const lanesPerSweep = 5 - state.zamboniWidth;
+        const laneHeight = (rinkBounds.bottom - rinkBounds.top) / lanesPerSweep;
+        zamboni.y = rinkBounds.top + ((zamboni.laneIndex % lanesPerSweep) + 0.5) * laneHeight;
+        zamboni.passDuration = getZamboniPassDuration();
+        zamboni.x = zamboni.direction === 1 ? -70 : RINK_WIDTH + 70;
+        const startX = zamboni.direction === 1 ? rinkBounds.left : rinkBounds.right;
+        zamboni.currentLane = {
+          left: startX,
+          right: startX,
+          top: zamboni.y - laneHeight / 2,
+          bottom: zamboni.y + laneHeight / 2,
+          expiresAt: elapsedGameTime + 20,
+        };
+        zamboni.lanes.push(zamboni.currentLane);
+        zamboni.laneIndex++;
+      }
+
+      function updateZamboni(deltaTime) {
+        if (!state.franchise.zamboni) return;
+        zamboni.lanes = zamboni.lanes.filter((lane) => lane.expiresAt > elapsedGameTime);
+        if (!zamboni.isDriving) {
+          zamboni.nextPassIn -= deltaTime;
+          if (zamboni.nextPassIn <= 0) startZamboniPass();
+          return;
+        }
+        zamboni.passTime = Math.min(zamboni.passDuration, zamboni.passTime + deltaTime);
+        const progress = zamboni.passTime / zamboni.passDuration;
+        zamboni.x =
+          zamboni.direction === 1
+            ? -70 + progress * (RINK_WIDTH + 140)
+            : RINK_WIDTH + 70 - progress * (RINK_WIDTH + 140);
+        const resurfacedX = Math.max(
+          rinkBounds.left,
+          Math.min(rinkBounds.right, zamboni.x - zamboni.direction * 32),
+        );
+        if (zamboni.direction === 1) zamboni.currentLane.right = resurfacedX;
+        else zamboni.currentLane.left = resurfacedX;
+        zamboni.currentLane.expiresAt = elapsedGameTime + 20;
+        if (zamboni.passTime >= zamboni.passDuration) {
+          zamboni.isDriving = false;
+          zamboni.nextPassIn = getZamboniCycleDuration() - zamboni.passDuration;
+          zamboni.currentLane = null;
+        }
+      }
+
+      function getSurfaceFriction(puck) {
+        const isResurfaced = zamboni.lanes.some(
+          (lane) =>
+            lane.expiresAt > elapsedGameTime &&
+            puck.x >= lane.left &&
+            puck.x <= lane.right &&
+            puck.y >= lane.top &&
+            puck.y <= lane.bottom,
+        );
+        return isResurfaced ? 0.5 : 1;
+      }
+
+      function drawResurfacedIce() {
+        drawingContext.save();
+        drawingContext.beginPath();
+        drawingContext.roundRect(42, 42, 916, 566, 82);
+        drawingContext.clip();
+        for (const lane of zamboni.lanes) {
+          const remainingTime = lane.expiresAt - elapsedGameTime;
+          if (remainingTime <= 0) continue;
+          drawingContext.globalAlpha = Math.min(1, remainingTime / 5);
+          drawingContext.fillStyle = "#8ed7ef40";
+          drawingContext.fillRect(
+            lane.left,
+            lane.top,
+            lane.right - lane.left,
+            lane.bottom - lane.top,
+          );
+          for (let y = lane.top + 9; y < lane.bottom; y += 12) {
+            drawLine(lane.left, y, lane.right, y, "#ffffff75", 2);
+          }
+        }
+        drawingContext.restore();
+      }
+
+      function drawZamboni() {
+        if (!zamboni.isDriving) return;
+        drawingContext.save();
+        drawingContext.translate(zamboni.x, zamboni.y);
+        drawingContext.scale(zamboni.direction, 1);
+        drawingContext.fillStyle = "#162a3e25";
+        drawingContext.beginPath();
+        drawingContext.ellipse(3, 6, 43, 28, 0, 0, Math.PI * 2);
+        drawingContext.fill();
+        drawingContext.fillStyle = "#253640";
+        for (const x of [-24, 20]) {
+          drawingContext.fillRect(x, -27, 13, 10);
+          drawingContext.fillRect(x, 17, 13, 10);
+        }
+        drawingContext.fillStyle = "#84979e";
+        const brushHeight = zamboni.currentLane
+          ? zamboni.currentLane.bottom - zamboni.currentLane.top
+          : (rinkBounds.bottom - rinkBounds.top) / (5 - state.zamboniWidth);
+        drawingContext.fillRect(-45, -brushHeight / 2, 11, brushHeight);
+        drawLine(-34, -brushHeight / 2 + 5, -28, -20, "#435966", 3);
+        drawLine(-34, brushHeight / 2 - 5, -28, 20, "#435966", 3);
+        drawingContext.fillStyle = "#d4e1e3";
+        drawingContext.fillRect(-36, -21, 9, 42);
+        drawingContext.fillStyle = "#f5f0df";
+        drawingContext.strokeStyle = "#435966";
+        drawingContext.lineWidth = 2;
+        drawingContext.beginPath();
+        drawingContext.roundRect(-28, -22, 66, 44, 7);
+        drawingContext.fill();
+        drawingContext.stroke();
+        drawingContext.fillStyle = "#7143a6";
+        drawingContext.beginPath();
+        drawingContext.roundRect(2, -20, 34, 40, 5);
+        drawingContext.fill();
+        drawingContext.fillStyle = "#bad4dc";
+        drawingContext.fillRect(-24, -16, 20, 32);
+        drawingContext.fillStyle = "#263d4a";
+        drawingContext.beginPath();
+        drawingContext.arc(-14, 0, 7, 0, Math.PI * 2);
+        drawingContext.fill();
+        drawingContext.fillStyle = "#e3b08a";
+        drawingContext.beginPath();
+        drawingContext.arc(-11, 0, 4, 0, Math.PI * 2);
+        drawingContext.fill();
+        drawingContext.fillStyle = "#fff3b1";
+        drawingContext.fillRect(35, -15, 4, 7);
+        drawingContext.fillRect(35, 8, 4, 7);
+        drawingContext.restore();
+      }
+
       function initializeGame() {
         goal.top = 325 - getGoalHeight() / 2;
         goal.bottom = 325 + getGoalHeight() / 2;
+        syncPracticeDummies();
+        syncTrainedShooters();
+        bindFranchiseControls();
         bindLayerTabs();
         bindUpgradeTabs();
         bindUpgradeButtons();
